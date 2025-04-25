@@ -64,4 +64,4 @@ const doctorRequestSchema = new mongoose.Schema({
   }
 });
 
-module.exports = mongoose.model('DoctorRequest', doctorRequestSchema);
+module.exports = mongoose.model('DoctorRequest', doctorRequestSchema, 'doctorRequests');
