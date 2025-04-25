@@ -1,0 +1,5 @@
+npm init -y
+npm install express mongoose dotenv cors
+npm install morgan
+npm install bcrypt jsonwebtoken
+npm install --save-dev nodemon
