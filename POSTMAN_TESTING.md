@@ -159,10 +159,6 @@ Authorization: Bearer <token>
 }
 ```
 
----
-
-Of course!  
-Here’s your **Fully Updated and Clean Postman Testing Markdown** for Admin APIs:
 
 ---
 
