@@ -3,7 +3,7 @@ const app = express();
 const authRoutes = require('./routes/auth.routes');
 const patientRoutes = require('./routes/patient.routes');
 const adminRoutes = require('./routes/admin.routes');
-const doctorRoutes = require('./routes/doctor.routes'); 
+const doctorRoutes = require('./routes/doctor.routes');
 
 const cors = require('cors');
 const morgan = require('morgan');
