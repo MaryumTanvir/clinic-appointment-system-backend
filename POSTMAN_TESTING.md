@@ -161,62 +161,88 @@ Authorization: Bearer <token>
 
 ---
 
-## Admin Routes
+Of course!  
+Here’s your **Fully Updated and Clean Postman Testing Markdown** for Admin APIs:
 
-### 1. Get Pending Doctor Requests
+---
+
+# Admin Routes — Clinic Appointment System
+
+## 1. Get Pending Doctor Requests
 
 - **Method:** `GET`
 - **Endpoint:** `/admin/doctor-requests`
 - **URL:** `http://localhost:5000/api/admin/doctor-requests`
 - **Description:** Fetch all doctor signup requests where status is `pending`.
+- **Authentication:** Bearer Token (Admin)
 
 ---
 
-### 2. Approve Doctor Request
+## 2. Approve Doctor Request
 
 - **Method:** `PUT`
 - **Endpoint:** `/admin/doctor-requests/:id/approve`
 - **URL Example:** `http://localhost:5000/api/admin/doctor-requests/{id}/approve`
-- **Description:** Approve a pending doctor signup request, create a User and Doctor Profile.
+- **Description:** Approves a pending doctor signup request, creates a new `User` and `DoctorProfile`.
+- **Authentication:** Bearer Token (Admin)
 
 ---
 
-### 3. Reject Doctor Request
+## 3. Reject Doctor Request
 
 - **Method:** `PUT`
 - **Endpoint:** `/admin/doctor-requests/:id/reject`
 - **URL Example:** `http://localhost:5000/api/admin/doctor-requests/{id}/reject`
-- **Description:** Reject a pending doctor request and update its status to `rejected`.
+- **Description:** Rejects a doctor signup request and updates status to `rejected`.
+- **Authentication:** Bearer Token (Admin)
 
 ---
 
-### 4. Delete Doctor Profile
+## 4. Delete Doctor Profile
 
 - **Method:** `DELETE`
 - **Endpoint:** `/admin/doctors/:id`
 - **URL Example:** `http://localhost:5000/api/admin/doctors/{id}`
-- **Description:** Deletes a doctor’s profile and user after ensuring no appointments are linked.
+- **Description:** Deletes a doctor's User + DoctorProfile after ensuring the doctor has no appointments.
+- **Authentication:** Bearer Token (Admin)
+
+- **Special Condition:**  
+  If the doctor has any appointments (scheduled, completed, etc.), deletion will be **blocked**.
 
 ---
 
-### 5. Assign Shift to Doctor
+## 5. Assign Shift to Doctor
 
 - **Method:** `POST`
 - **Endpoint:** `/admin/assign-shift`
 - **URL:** `http://localhost:5000/api/admin/assign-shift`
 - **Description:** Assigns a shift (morning, evening, night) to a doctor if:
-  - The doctor is available
-  - No previous shift exists for that doctor on the same date
-  - The date is not in the past
+  - Doctor has no existing shift on the given date
+  - Date is not in the past
+- **Authentication:** Bearer Token (Admin)
+
+- **Sample Request Body:**
+
+```json
+{
+  "doctorId": "doctor-objectid",
+  "date": "2025-05-10",
+  "startTime": "09:00",
+  "endTime": "17:00",
+  "shiftType": "morning",
+  "location": "Cardiology Department"
+}
+```
 
 ---
 
-### 6. Get Logged-In Admin Profile
+## 6. Get Logged-In Admin Profile
 
 - **Method:** `GET`
 - **Endpoint:** `/admin/profile`
 - **URL:** `http://localhost:5000/api/admin/profile`
-- **Description:** Fetch the profile details of the currently logged-in admin (temporary hardcoded admin for now).
+- **Description:** Fetches full profile details of the logged-in admin (via token).
+- **Authentication:** Bearer Token (Admin)
 
 - **Sample Response:**
 
@@ -236,6 +262,61 @@ Authorization: Bearer <token>
   }
 }
 ```
+
+---
+
+## 7. Update Logged-In Admin Profile
+
+- **Method:** `PUT`
+- **Endpoint:** `/admin/profile`
+- **URL:** `http://localhost:5000/api/admin/profile`
+- **Description:** Allows an admin to update their own information (e.g., name, gender, department).
+- **Authentication:** Bearer Token (Admin)
+
+- **Sample Request Body:**
+
+```json
+{
+  "firstName": "UpdatedFirstName",
+  "lastName": "UpdatedLastName",
+  "gender": "female",
+  "email": "updatedadmin@clinic.com",
+  "profileImage": "https://example.com/updated.jpg",
+  "department": "Management",
+  "designation": "Senior Manager",
+  "contact": {
+    "phone": "03441234567",
+    "officeLocation": "Main Office"
+  }
+}
+```
+
+- **Sample Response:**
+
+```json
+{
+  "success": true,
+  "message": "Admin profile updated successfully",
+  "data": {
+    "user": {
+      "_id": "admin-user-objectid",
+      "firstName": "UpdatedFirstName",
+      "lastName": "UpdatedLastName",
+      ...
+    },
+    "adminProfile": {
+      "_id": "admin-profile-objectid",
+      "department": "Management",
+      "designation": "Senior Manager",
+      ...
+    }
+  }
+}
+```
+
+---
+
+
 
 ---
 

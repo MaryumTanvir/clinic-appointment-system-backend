@@ -10,6 +10,7 @@ const Appointment = require('../models/Appointment');
 
 /////////// Manage Admin
 
+//get admin profile
 
 exports.getAdminProfile = async (req, res) => {
   try {
@@ -50,6 +51,44 @@ exports.getAdminProfile = async (req, res) => {
 };
 
 
+//update admin profile
+exports.updateAdminProfile = async (req, res) => {
+  try {
+    const adminId = req.user._id; // comes from JWT token
+
+    const { firstName, lastName, gender, email, profileImage, department, designation, contact } = req.body;
+
+    // Update User table
+    const userUpdateFields = { updatedAt: new Date() };
+    if (firstName) userUpdateFields.firstName = firstName;
+    if (lastName) userUpdateFields.lastName = lastName;
+    if (gender) userUpdateFields.gender = gender;
+    if (email) userUpdateFields.email = email;
+    if (profileImage) userUpdateFields.profileImage = profileImage;
+
+    const updatedUser = await User.findByIdAndUpdate(adminId, userUpdateFields, { new: true });
+
+    // Update AdminProfile table
+    const adminProfileUpdateFields = { updatedAt: new Date() };
+    if (department) adminProfileUpdateFields.department = department;
+    if (designation) adminProfileUpdateFields.designation = designation;
+    if (contact) adminProfileUpdateFields.contact = contact;
+
+    const updatedAdminProfile = await AdminProfile.findOneAndUpdate({ userId: adminId }, adminProfileUpdateFields, { new: true });
+
+    res.status(200).json({
+      success: true,
+      message: 'Admin profile updated successfully',
+      data: {
+        user: updatedUser,
+        adminProfile: updatedAdminProfile
+      }
+    });
+  } catch (error) {
+    console.error('Update admin profile error:', error);
+    res.status(500).json({ success: false, message: 'Server error' });
+  }
+};
 
 
 /////////  Manage Doctor Requests
