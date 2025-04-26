@@ -182,6 +182,201 @@ exports.bookAppointment = async (req, res) => {
   }
 };
 
+// Get Appointment (filter on date)
+exports.getAppointments = async (req, res) => {
+  try {
+    console.log('getAppointments - req.user:', req.user);
+    if (!req.user) {
+      return res.status(401).json({ success: false, message: 'User not authenticated' });
+    }
+    const patientId = req.user._id;
+    const timeFilter = req.query.time;
+
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const tomorrow = new Date(today);
+    tomorrow.setDate(today.getDate() + 1);
+
+    let dateFilter = {};
+    if (timeFilter === 'past') {
+      dateFilter = { date: { $lt: today } };
+    } else if (timeFilter === 'today') {
+      dateFilter = { date: { $gte: today, $lt: tomorrow } };
+    } else if (timeFilter === 'future') {
+      dateFilter = { date: { $gte: tomorrow } };
+    }
+
+    const appointments = await Appointment.find({
+      patientId,
+      ...dateFilter
+    })
+      .populate('doctorId', 'firstName lastName')
+      .sort({ date: 1, time: 1 });
+
+    res.status(200).json({
+      success: true,
+      count: appointments.length,
+      data: appointments
+    });
+  } catch (error) {
+    console.error('Get appointments error:', error);
+    res.status(500).json({ success: false, message: error.message });
+  }
+};
+
+// Cancel appointment 
+exports.cancelAppointment = async (req, res) => {
+  try {
+    console.log('cancelAppointment - req.user:', req.user);
+    if (!req.user) {
+      return res.status(401).json({ success: false, message: 'User not authenticated' });
+    }
+    const patientId = req.user._id;
+    const appointmentId = req.params.id;
+
+    const appointment = await Appointment.findById(appointmentId);
+    if (!appointment) {
+      return res.status(404).json({ success: false, message: 'Appointment not found' });
+    }
+    if (appointment.patientId.toString() !== patientId.toString()) {
+      return res.status(403).json({ success: false, message: 'Not authorized to cancel this appointment' });
+    }
+    if (['cancelled', 'completed'].includes(appointment.status)) {
+      return res.status(400).json({ success: false, message: `Cannot cancel an appointment that is already ${appointment.status}` });
+    }
+
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    if (new Date(appointment.date) < today) {
+      return res.status(400).json({ success: false, message: 'Cannot cancel past appointments' });
+    }
+
+    // Update appointment status
+    appointment.status = 'cancelled';
+    appointment.updatedAt = new Date();
+    await appointment.save();
+
+    // Update associated payment (if pending)
+    const payment = await Payment.findOne({ appointmentId, status: 'pending' });
+    if (payment) {
+      payment.status = 'cancelled';
+      payment.updatedAt = new Date();
+      await payment.save();
+    }
+
+    // Update doctor availability (mark slot as available)
+    await DoctorProfile.updateOne(
+      { userId: appointment.doctorId, 'availability.date': appointment.date, 'availability.time': appointment.time },
+      { $set: { 'availability.$.available': true } }
+    );
+
+    res.status(200).json({
+      success: true,
+      message: 'Appointment cancelled successfully',
+      data: appointment
+    });
+  } catch (error) {
+    console.error('Cancel appointment error:', error);
+    res.status(500).json({ success: false, message: error.message });
+  }
+};
+
+// Reschedule appointment 
+exports.rescheduleAppointment = async (req, res) => {
+  try {
+    console.log('rescheduleAppointment - req.user:', req.user);
+    if (!req.user) {
+      return res.status(401).json({ success: false, message: 'User not authenticated' });
+    }
+    const patientId = req.user._id;
+    const appointmentId = req.params.id;
+    const { date, time, notes } = req.body;
+
+    if (!date || !time) {
+      return res.status(400).json({ success: false, message: 'Date and time are required' });
+    }
+
+    const appointment = await Appointment.findById(appointmentId);
+    if (!appointment) {
+      return res.status(404).json({ success: false, message: 'Appointment not found' });
+    }
+    if (appointment.patientId.toString() !== patientId.toString()) {
+      return res.status(403).json({ success: false, message: 'Not authorized to reschedule this appointment' });
+    }
+    if (appointment.status === 'cancelled') {
+      return res.status(400).json({ success: false, message: 'Cannot reschedule a cancelled appointment' });
+    }
+    if (appointment.status === 'completed') {
+      return res.status(400).json({ success: false, message: 'Cannot reschedule a completed appointment' });
+    }
+
+    const newDate = new Date(date);
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    if (newDate < today) {
+      return res.status(400).json({ success: false, message: 'Cannot reschedule to a past date' });
+    }
+
+    const doctorProfile = await DoctorProfile.findOne({ userId: appointment.doctorId, approved: true });
+    if (!doctorProfile) {
+      return res.status(404).json({ success: false, message: 'Doctor profile not found or not approved' });
+    }
+
+    // Check if new slot is available
+    const isAvailable = doctorProfile.availability.some(avail => {
+      const availDate = new Date(avail.date);
+      availDate.setHours(0, 0, 0, 0);
+      return availDate.getTime() === newDate.getTime() && avail.time === time && avail.available;
+    });
+    if (!isAvailable) {
+      return res.status(400).json({ success: false, message: 'Doctor not available at the selected time' });
+    }
+
+    // Check for conflicting appointments
+    const existingAppointment = await Appointment.findOne({
+      doctorId: appointment.doctorId,
+      date: newDate,
+      time,
+      status: { $in: ['scheduled', 'rescheduled'] },
+      _id: { $ne: appointmentId }
+    });
+    if (existingAppointment) {
+      return res.status(400).json({ success: false, message: 'Time slot already booked' });
+    }
+
+    // Update old availability (mark original slot as available)
+    await DoctorProfile.updateOne(
+      { userId: appointment.doctorId, 'availability.date': appointment.date, 'availability.time': appointment.time },
+      { $set: { 'availability.$.available': true } }
+    );
+
+    // Update new availability (mark new slot as unavailable)
+    await DoctorProfile.updateOne(
+      { userId: appointment.doctorId, 'availability.date': newDate, 'availability.time': time },
+      { $set: { 'availability.$.available': false } }
+    );
+
+    // Update appointment
+    appointment.date = newDate;
+    appointment.time = time;
+    appointment.notes = notes || appointment.notes;
+    appointment.status = 'rescheduled';
+    appointment.rescheduledFrom = appointment._id;
+    appointment.updatedAt = new Date();
+    await appointment.save();
+
+    res.status(200).json({
+      success: true,
+      message: 'Appointment rescheduled successfully',
+      data: appointment
+    });
+  } catch (error) {
+    console.error('Reschedule appointment error:', error);
+    res.status(500).json({ success: false, message: error.message });
+  }
+};
+
+
 // Get patient profile
 exports.getPatientProfile = async (req, res) => {
   try {

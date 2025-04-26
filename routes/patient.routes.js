@@ -12,6 +12,15 @@ router.get('/doctors/:id', authMiddleware, patientController.getDoctorInfo);
 // POST book an appointment with a doctor for a specific time slot
 router.post('/appointments', authMiddleware, patientController.bookAppointment);
 
+// GET appointment details
+router.get('/appointments', authMiddleware, patientController.getAppointments);
+
+// PUT cancel appointment
+router.put('/appointments/:id/cancel', authMiddleware, patientController.cancelAppointment); 
+
+// PUT reshedule appointment
+router.put('/appointments/:id/reschedule', authMiddleware, patientController.rescheduleAppointment); 
+
 // GET patient profile info
 router.get('/profile', authMiddleware, patientController.getPatientProfile);
 
