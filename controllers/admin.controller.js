@@ -1,7 +1,55 @@
+const mongoose = require('mongoose');
+const AdminProfile = require('../models/AdminProfile');
 const DoctorRequest = require('../models/DoctorRequest');
 const DoctorProfile = require('../models/DoctorProfile');
 const User = require('../models/User');
 const Shift = require('../models/Shift');
+const Appointment = require('../models/Appointment');
+
+
+
+/////////// Manage Admin
+
+
+exports.getAdminProfile = async (req, res) => {
+  try {
+    const adminUserId = req.user.id;
+
+    const user = await User.findById(adminUserId);
+    if (!user || user.role !== 'admin') {
+      return res.status(404).json({ success: false, message: 'Admin user not found' });
+    }
+
+    const adminProfile = await AdminProfile.findOne({ userId: adminUserId });
+    if (!adminProfile) {
+      return res.status(404).json({ success: false, message: 'Admin profile not found' });
+    }
+
+    const fullAdminData = {
+      firstName: user.firstName,
+      lastName: user.lastName,
+      gender: user.gender,
+      email: user.email,
+      profileImage: user.profileImage,
+      department: adminProfile.department,
+      designation: adminProfile.designation,
+      contact: adminProfile.contact,
+      createdAt: adminProfile.createdAt,
+      updatedAt: adminProfile.updatedAt
+    };
+
+    res.status(200).json({
+      success: true,
+      data: fullAdminData
+    });
+
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ success: false, message: 'Server error' });
+  }
+};
+
+
 
 
 /////////  Manage Doctor Requests
@@ -128,51 +176,25 @@ exports.assignShift = async (req, res) => {
   try {
     const { doctorId, date, startTime, endTime, shiftType, location, createdBy } = req.body;
 
-    if (!doctorId || !date || !startTime || !endTime || !shiftType) {
-      return res.status(400).json({ success: false, message: "Missing required fields" });
+    // Check: Date must not be in the past
+    if (new Date(date) < new Date()) {
+      return res.status(400).json({ success: false, message: "Cannot assign shift in the past" });
     }
 
-    const shiftDate = new Date(date);
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-
-    // Check if date is today or future
-    if (shiftDate < today) {
-      return res.status(400).json({ success: false, message: "Cannot assign shifts in the past" });
-    }
-
-    // Check if doctor exists and is approved
-    const doctor = await User.findOne({ _id: doctorId, role: 'doctor' });
-    if (!doctor) {
-      return res.status(404).json({ success: false, message: "Doctor not found" });
-    }
-
-    // Check doctor profile availability
-    const doctorProfile = await DoctorProfile.findOne({ userId: doctorId });
-    if (!doctorProfile) {
-      return res.status(404).json({ success: false, message: "Doctor profile not found" });
-    }
-
-    const isAvailable = doctorProfile.availability.some(avail => {
-      const availDate = new Date(avail.date);
-      availDate.setHours(0, 0, 0, 0);
-      return availDate.getTime() === shiftDate.getTime() && avail.available === true;
+    // Check: Doctor must not already have a shift assigned on the same date
+    const existingShift = await Shift.findOne({
+      doctorId,
+      date: new Date(date)
     });
 
-    if (!isAvailable) {
-      return res.status(400).json({ success: false, message: "Doctor not available on the selected date" });
-    }
-
-    // Check if already has a shift on that date
-    const existingShift = await Shift.findOne({ doctorId, date: shiftDate });
     if (existingShift) {
-      return res.status(400).json({ success: false, message: "Doctor already has a shift on this date" });
+      return res.status(400).json({ success: false, message: "Doctor already has a shift assigned on this date" });
     }
 
-    // Finally, create the shift
+    // If no conflicts, assign shift
     const shift = await Shift.create({
       doctorId,
-      date: shiftDate,
+      date: new Date(date),
       startTime,
       endTime,
       shiftType,
@@ -183,7 +205,7 @@ exports.assignShift = async (req, res) => {
 
     res.status(201).json({
       success: true,
-      message: "Shift assigned successfully",
+      message: 'Shift assigned successfully',
       data: shift
     });
 
@@ -192,7 +214,6 @@ exports.assignShift = async (req, res) => {
     res.status(500).json({ success: false, message: error.message });
   }
 };
-
 
 
 /////////// Manage Doctors 
@@ -212,27 +233,34 @@ exports.getAllUsers = async (req, res) => {
 };
 
 // Delete doctor profile
+// Delete doctor profile (only if no appointments)
 exports.deleteDoctorProfile = async (req, res) => {
   try {
     const userId = req.params.id;
 
-    // First, find the doctor profile
-    const doctorProfile = await DoctorProfile.findOne({ userId });
-    const user = await User.findById(userId);
+    // Check if doctor has any appointments
+    const existingAppointments = await Appointment.find({ doctorId: userId });
 
-    if (!doctorProfile || !user) {
-      return res.status(404).json({ success: false, message: 'Doctor profile not found' });
+    if (existingAppointments.length > 0) {
+      return res.status(400).json({
+        success: false,
+        message: 'Cannot delete doctor. Doctor has active or past appointments.'
+      });
     }
 
-    // Then delete the documents
-    await DoctorProfile.deleteOne({ userId });
-    await User.deleteOne({ _id: userId });
+    // If no appointments, proceed to delete
+    const deletedProfile = await DoctorProfile.findOneAndDelete({ userId });
+    const deletedUser = await User.findByIdAndDelete(userId);
+
+    if (!deletedProfile || !deletedUser) {
+      return res.status(404).json({ success: false, message: 'Doctor not found' });
+    }
 
     res.status(200).json({
       success: true,
       message: 'Doctor profile deleted successfully',
-      deletedProfile: doctorProfile,
-      deletedUser: user
+      deletedProfile,
+      deletedUser
     });
 
   } catch (error) {
