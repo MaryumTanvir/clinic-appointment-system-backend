@@ -1,7 +1,6 @@
 const { MongoClient } = require('mongodb');
 const bcrypt = require('bcryptjs');
 
-// MongoDB connection details
 const uri = process.env.MONGODB_URI || 'mongodb://localhost:27017';
 const dbName = 'clinic-management-system';
 const collectionName = 'users';
