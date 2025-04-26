@@ -2,10 +2,6 @@ const express = require('express');
 const router = express.Router();
 const patientController = require('../controllers/patient.controller');
 const authMiddleware = require('../middlewares/auth.middleware');
-const authController = require('../controllers/auth.controller');
-
-// POST /api/patients/login
-router.post('/login', authController.patientlogin);
 
 // GET all doctors with search and filter
 router.get('/doctors', authMiddleware, patientController.searchDoctors);
