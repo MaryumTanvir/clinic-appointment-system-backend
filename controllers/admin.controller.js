@@ -124,14 +124,55 @@ exports.rejectDoctor = async (req, res) => {
 };
 
 
-// Assign shift to doctor
 exports.assignShift = async (req, res) => {
   try {
     const { doctorId, date, startTime, endTime, shiftType, location, createdBy } = req.body;
 
+    if (!doctorId || !date || !startTime || !endTime || !shiftType) {
+      return res.status(400).json({ success: false, message: "Missing required fields" });
+    }
+
+    const shiftDate = new Date(date);
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+
+    // Check if date is today or future
+    if (shiftDate < today) {
+      return res.status(400).json({ success: false, message: "Cannot assign shifts in the past" });
+    }
+
+    // Check if doctor exists and is approved
+    const doctor = await User.findOne({ _id: doctorId, role: 'doctor' });
+    if (!doctor) {
+      return res.status(404).json({ success: false, message: "Doctor not found" });
+    }
+
+    // Check doctor profile availability
+    const doctorProfile = await DoctorProfile.findOne({ userId: doctorId });
+    if (!doctorProfile) {
+      return res.status(404).json({ success: false, message: "Doctor profile not found" });
+    }
+
+    const isAvailable = doctorProfile.availability.some(avail => {
+      const availDate = new Date(avail.date);
+      availDate.setHours(0, 0, 0, 0);
+      return availDate.getTime() === shiftDate.getTime() && avail.available === true;
+    });
+
+    if (!isAvailable) {
+      return res.status(400).json({ success: false, message: "Doctor not available on the selected date" });
+    }
+
+    // Check if already has a shift on that date
+    const existingShift = await Shift.findOne({ doctorId, date: shiftDate });
+    if (existingShift) {
+      return res.status(400).json({ success: false, message: "Doctor already has a shift on this date" });
+    }
+
+    // Finally, create the shift
     const shift = await Shift.create({
       doctorId,
-      date,
+      date: shiftDate,
       startTime,
       endTime,
       shiftType,
@@ -142,13 +183,16 @@ exports.assignShift = async (req, res) => {
 
     res.status(201).json({
       success: true,
-      message: 'Shift assigned successfully',
+      message: "Shift assigned successfully",
       data: shift
     });
+
   } catch (error) {
+    console.error(error);
     res.status(500).json({ success: false, message: error.message });
   }
 };
+
 
 
 /////////// Manage Doctors 
