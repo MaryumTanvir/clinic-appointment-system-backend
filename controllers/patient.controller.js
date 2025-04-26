@@ -89,7 +89,7 @@ exports.bookAppointment = async (req, res) => {
       return res.status(401).json({ success: false, message: 'User not authenticated' });
     }
     const patientId = req.user._id;
-    const { doctorId, date, time } = req.body;
+    const { doctorId, date, time, notes } = req.body;
 
     if (!doctorId || !date || !time) {
       return res.status(400).json({ success: false, message: 'Missing required fields' });
@@ -155,9 +155,20 @@ exports.bookAppointment = async (req, res) => {
       doctorId,
       date: appointmentDate,
       time,
+      notes: notes || '', 
       status: 'scheduled',
       createdAt: new Date(),
       updatedAt: new Date()
+    });
+
+    // Create pending payment
+    await Payment.create({
+      appointmentId: appointment._id,
+      patientId,
+      doctorId,
+      amount: doctorProfile.consultationFee,
+      status: 'pending',
+      createdAt: new Date()
     });
 
     res.status(201).json({
@@ -311,7 +322,7 @@ exports.getPaymentDetails = async (req, res) => {
   }
 };
 
-// Make a payment
+// Make a payment (can be for multiple appointments)
 exports.makePayment = async (req, res) => {
   try {
     console.log('makePayment - req.user:', req.user); // Debug log
@@ -319,50 +330,63 @@ exports.makePayment = async (req, res) => {
       return res.status(401).json({ success: false, message: 'User not authenticated' });
     }
     const patientId = req.user._id;
-    const { appointmentId, amount, method } = req.body;
+    const { appointmentIds, method } = req.body;
 
-    if (!appointmentId || !amount || !method) {
-      return res.status(400).json({ success: false, message: 'Missing required fields' });
+    if (!appointmentIds || !Array.isArray(appointmentIds) || appointmentIds.length === 0 || !method) {
+      return res.status(400).json({ success: false, message: 'appointmentIds (array) and method are required' });
     }
 
-    // Validate appointment
-    const appointment = await Appointment.findById(appointmentId);
-    if (!appointment || appointment.patientId.toString() !== patientId.toString()) {
-      return res.status(404).json({ success: false, message: 'Appointment not found or not authorized' });
+    const results = [];
+    const errors = [];
+
+    for (const appointmentId of appointmentIds) {
+      try {
+        // Validate appointment
+        const appointment = await Appointment.findById(appointmentId);
+        if (!appointment || appointment.patientId.toString() !== patientId.toString()) {
+          errors.push({ appointmentId, error: 'Appointment not found or not authorized' });
+          continue;
+        }
+
+        // Find pending payment
+        const payment = await Payment.findOne({ appointmentId, status: 'pending' });
+        if (!payment) {
+          errors.push({ appointmentId, error: 'No pending payment found for this appointment' });
+          continue;
+        }
+
+        // Validate doctor profile
+        const doctorProfile = await DoctorProfile.findOne({ userId: appointment.doctorId });
+        if (!doctorProfile) {
+          errors.push({ appointmentId, error: 'Doctor profile not found' });
+          continue;
+        }
+
+        // Update payment to paid
+        payment.status = 'paid';
+        payment.method = method;
+        payment.paidAt = new Date();
+        await payment.save();
+
+        results.push(payment);
+      } catch (error) {
+        errors.push({ appointmentId, error: error.message });
+      }
     }
 
-    // Check if payment already exists
-    const existingPayment = await Payment.findOne({ appointmentId });
-    if (existingPayment) {
-      return res.status(400).json({ success: false, message: 'Payment already made for this appointment' });
+    if (results.length === 0 && errors.length > 0) {
+      return res.status(400).json({
+        success: false,
+        message: 'No payments were processed successfully',
+        errors
+      });
     }
 
-    // Validate doctor profile for consultation fee
-    const doctorProfile = await DoctorProfile.findOne({ userId: appointment.doctorId });
-    if (!doctorProfile) {
-      return res.status(404).json({ success: false, message: 'Doctor profile not found' });
-    }
-
-    if (amount !== doctorProfile.consultationFee) {
-      return res.status(400).json({ success: false, message: 'Invalid payment amount' });
-    }
-
-    // Create payment
-    const payment = await Payment.create({
-      appointmentId,
-      patientId,
-      doctorId: appointment.doctorId,
-      amount,
-      status: 'paid',
-      method,
-      paidAt: new Date(),
-      createdAt: new Date()
-    });
-
-    res.status(201).json({
+    res.status(200).json({
       success: true,
-      message: 'Payment made successfully',
-      data: payment
+      message: 'Payments processed successfully',
+      data: results,
+      errors: errors.length > 0 ? errors : undefined
     });
   } catch (error) {
     console.error('Make payment error:', error);
