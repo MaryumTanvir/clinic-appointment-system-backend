@@ -38,6 +38,7 @@ exports.approveDoctor = async (req, res) => {
         message: 'This doctor request is already approved'
       });
     }
+    
 
     // Update status and reviewedAt
     request.status = 'approved';
