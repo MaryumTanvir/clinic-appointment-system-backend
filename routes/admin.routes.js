@@ -20,4 +20,7 @@ router.get('/users', adminController.getAllUsers);
 // DELETE a doctor profile
 router.delete('/doctors/:id', adminController.deleteDoctorProfile);
 
+// Update Doctor Info
+router.put('/doctors/:id', adminController.updateDoctorInfo);
+
 module.exports = router;

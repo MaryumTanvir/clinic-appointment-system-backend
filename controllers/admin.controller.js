@@ -3,6 +3,9 @@ const DoctorProfile = require('../models/DoctorProfile');
 const User = require('../models/User');
 const Shift = require('../models/Shift');
 
+
+/////////  Manage Doctor Requests
+
 // Get all pending doctor requests
 exports.getPendingDoctorRequests = async (req, res) => {
   try {
@@ -38,6 +41,7 @@ exports.approveDoctor = async (req, res) => {
         message: 'This doctor request is already approved'
       });
     }
+    
 
     // Update status and reviewedAt
     request.status = 'approved';
@@ -89,29 +93,86 @@ exports.approveDoctor = async (req, res) => {
 // Reject a doctor request
 exports.rejectDoctor = async (req, res) => {
   try {
-    const updated = await DoctorRequest.findByIdAndUpdate(req.params.id, {
-      status: 'rejected',
-      reviewedAt: new Date()
-    }, { new: true });
+    const requestId = req.params.id;
 
-    if (!updated) {
-      return res.status(404).json({ success: false, message: 'Doctor request not found' });
+    // Find and update the doctor request
+    const updatedRequest = await DoctorRequest.findByIdAndUpdate(
+      requestId,
+      {
+        status: 'rejected',
+        reviewedAt: new Date()
+      },
+      { new: true } // return the updated document
+    );
+
+    if (!updatedRequest) {
+      return res.status(404).json({
+        success: false,
+        message: 'Doctor request not found'
+      });
     }
 
-    res.status(200).json({ success: true, message: 'Doctor request rejected', data: updated });
+    res.status(200).json({
+      success: true,
+      message: 'Doctor request rejected successfully',
+      data: updatedRequest
+    });
   } catch (error) {
-    res.status(500).json({ success: false, message: error.message });
+    console.error(error);
+    res.status(500).json({ success: false, message: 'Server error' });
   }
 };
 
-// Assign shift to doctor
+
 exports.assignShift = async (req, res) => {
   try {
     const { doctorId, date, startTime, endTime, shiftType, location, createdBy } = req.body;
 
+    if (!doctorId || !date || !startTime || !endTime || !shiftType) {
+      return res.status(400).json({ success: false, message: "Missing required fields" });
+    }
+
+    const shiftDate = new Date(date);
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+
+    // Check if date is today or future
+    if (shiftDate < today) {
+      return res.status(400).json({ success: false, message: "Cannot assign shifts in the past" });
+    }
+
+    // Check if doctor exists and is approved
+    const doctor = await User.findOne({ _id: doctorId, role: 'doctor' });
+    if (!doctor) {
+      return res.status(404).json({ success: false, message: "Doctor not found" });
+    }
+
+    // Check doctor profile availability
+    const doctorProfile = await DoctorProfile.findOne({ userId: doctorId });
+    if (!doctorProfile) {
+      return res.status(404).json({ success: false, message: "Doctor profile not found" });
+    }
+
+    const isAvailable = doctorProfile.availability.some(avail => {
+      const availDate = new Date(avail.date);
+      availDate.setHours(0, 0, 0, 0);
+      return availDate.getTime() === shiftDate.getTime() && avail.available === true;
+    });
+
+    if (!isAvailable) {
+      return res.status(400).json({ success: false, message: "Doctor not available on the selected date" });
+    }
+
+    // Check if already has a shift on that date
+    const existingShift = await Shift.findOne({ doctorId, date: shiftDate });
+    if (existingShift) {
+      return res.status(400).json({ success: false, message: "Doctor already has a shift on this date" });
+    }
+
+    // Finally, create the shift
     const shift = await Shift.create({
       doctorId,
-      date,
+      date: shiftDate,
       startTime,
       endTime,
       shiftType,
@@ -122,13 +183,19 @@ exports.assignShift = async (req, res) => {
 
     res.status(201).json({
       success: true,
-      message: 'Shift assigned successfully',
+      message: "Shift assigned successfully",
       data: shift
     });
+
   } catch (error) {
+    console.error(error);
     res.status(500).json({ success: false, message: error.message });
   }
 };
+
+
+
+/////////// Manage Doctors 
 
 // Get all users
 exports.getAllUsers = async (req, res) => {
@@ -149,18 +216,80 @@ exports.deleteDoctorProfile = async (req, res) => {
   try {
     const userId = req.params.id;
 
-    const profileDeleted = await DoctorProfile.deleteOne({ userId });
-    const userDeleted = await User.deleteOne({ _id: userId });
+    // First, find the doctor profile
+    const doctorProfile = await DoctorProfile.findOne({ userId });
+    const user = await User.findById(userId);
 
-    if (profileDeleted.deletedCount === 0 || userDeleted.deletedCount === 0) {
+    if (!doctorProfile || !user) {
       return res.status(404).json({ success: false, message: 'Doctor profile not found' });
+    }
+
+    // Then delete the documents
+    await DoctorProfile.deleteOne({ userId });
+    await User.deleteOne({ _id: userId });
+
+    res.status(200).json({
+      success: true,
+      message: 'Doctor profile deleted successfully',
+      deletedProfile: doctorProfile,
+      deletedUser: user
+    });
+
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ success: false, message: error.message });
+  }
+};
+
+// Update Doctor Info
+exports.updateDoctorInfo = async (req, res) => {
+  try {
+    const userId = req.params.id;
+    const { firstName, lastName, gender, specialty, credentials, consultationFee, phone, location } = req.body;
+
+    // Update user basic info
+    const updatedUser = await User.findByIdAndUpdate(
+      userId,
+      {
+        firstName,
+        lastName,
+        gender,
+        updatedAt: new Date()
+      },
+      { new: true }
+    );
+
+    // Update doctor profile info
+    const updatedProfile = await DoctorProfile.findOneAndUpdate(
+      { userId: userId },
+      {
+        specialty,
+        credentials,
+        consultationFee,
+        'contact.phone': phone,
+        'contact.location': location,
+        updatedAt: new Date()
+      },
+      { new: true }
+    );
+
+    if (!updatedUser || !updatedProfile) {
+      return res.status(404).json({
+        success: false,
+        message: 'Doctor not found'
+      });
     }
 
     res.status(200).json({
       success: true,
-      message: 'Doctor profile deleted successfully'
+      message: 'Doctor info updated successfully',
+      data: {
+        user: updatedUser,
+        doctorProfile: updatedProfile
+      }
     });
   } catch (error) {
-    res.status(500).json({ success: false, message: error.message });
+    console.error(error);
+    res.status(500).json({ success: false, message: 'Server error' });
   }
 };
