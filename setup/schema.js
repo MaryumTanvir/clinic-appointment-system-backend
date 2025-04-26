@@ -87,7 +87,6 @@ db.createCollection("patientProfiles", {
       properties: {
         userId: { bsonType: "objectId" },
         age: { bsonType: "int" },
-        gender: { bsonType: "string" },
         contact: {
           bsonType: "object",
           properties: {
@@ -388,7 +387,6 @@ db.patientProfiles.insertMany([
   {
     userId: patientIds[0],
     age: 29,
-    gender: "male",
     contact: { phone: "03001234567", address: "Lahore" },
     medicalHistory: ["Hypertension"],
     createdAt: new Date(),
@@ -397,7 +395,6 @@ db.patientProfiles.insertMany([
   {
     userId: patientIds[1],
     age: 34,
-    gender: "female",
     contact: { phone: "03011234567", address: "Karachi" },
     medicalHistory: [],
     createdAt: new Date(),
@@ -406,7 +403,6 @@ db.patientProfiles.insertMany([
   {
     userId: patientIds[2],
     age: 41,
-    gender: "male",
     contact: { phone: "03021234567", address: "Islamabad" },
     medicalHistory: ["Diabetes"],
     createdAt: new Date(),

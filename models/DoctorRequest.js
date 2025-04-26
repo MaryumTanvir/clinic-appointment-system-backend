@@ -19,7 +19,7 @@ const doctorRequestSchema = new mongoose.Schema({
   email: {
     type: String,
     required: true,
-    unique: true, // optional if you want each email to be unique
+    unique: true, 
     lowercase: true,
     trim: true
   },
