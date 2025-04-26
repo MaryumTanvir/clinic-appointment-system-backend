@@ -1,6 +1,13 @@
 const express = require('express');
 const router = express.Router();
 const adminController = require('../controllers/admin.controller');
+const authMiddleware = require('../middlewares/auth.middleware');
+
+
+
+//GET admin profile
+router.get('/profile', authMiddleware, adminController.getAdminProfile);
+
 
 // GET all pending doctor requests
 router.get('/doctor-requests', adminController.getPendingDoctorRequests);
