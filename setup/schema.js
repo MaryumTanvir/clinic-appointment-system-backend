@@ -536,5 +536,5 @@ db.feedback.insertMany([
 ]);
 
 // PAYMENTS 
-db.payments.insertMany([ { appointmentId: appointmentIds[0], patientId: patientIds[0], doctorId: doctorIds[0], amount: Number("2500.00"), status: "paid", method: "card", paidAt: new Date(), createdAt: new Date() }, { appointmentId: appointmentIds[1], patientId: patientIds[1], doctorId: doctorIds[1], amount: Number("3000.00"), status: "paid", method: "cash", paidAt: new Date(), createdAt: new Date() }, { appointmentId: appointmentIds[2], patientId: patientIds[2], doctorId: doctorIds[2], amount: Number("3500.00"), status: "pending", method: "card", createdAt: new Date() } ]);
+db.payments.insertMany([ { appointmentId: appointmentIds[0], patientId: patientIds[0], doctorId: doctorIds[0], amount: Number("2500.00"), status: "pending", method: "card", paidAt: new Date(), createdAt: new Date() }, { appointmentId: appointmentIds[1], patientId: patientIds[1], doctorId: doctorIds[1], amount: Number("3000.00"), status: "paid", method: "cash", paidAt: new Date(), createdAt: new Date() }, { appointmentId: appointmentIds[2], patientId: patientIds[2], doctorId: doctorIds[2], amount: Number("3500.00"), status: "pending", method: "card", createdAt: new Date() } ]);
 
