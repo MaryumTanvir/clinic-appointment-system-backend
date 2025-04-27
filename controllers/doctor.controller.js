@@ -233,67 +233,118 @@ exports.updateFeedbackStatus = async (req, res) => {
 // Doctor Pofile View
 // Get the profile of the logged-in doctor
 exports.getDoctorProfile = async (req, res) => {
-    try {
+  try {
       console.log('getDoctorProfile - req.user:', req.user); // Debug log
       if (!req.user) {
-        return res.status(401).json({ success: false, message: 'User not authenticated' });
+          return res.status(401).json({ success: false, message: 'User not authenticated' });
       }
-  
+
       const doctorId = req.user._id;
-  
-      // Fetch the doctor's profile
-      const doctorProfile = await DoctorProfile.findOne({ userId: doctorId }).populate('userId', 'firstName lastName email');
-      if (!doctorProfile) {
-        return res.status(404).json({ success: false, message: 'Doctor profile not found' });
+
+      // Fetch the user details
+      const user = await User.findById(doctorId);
+      if (!user || user.role !== 'doctor') {
+          return res.status(404).json({ success: false, message: 'Doctor user not found' });
       }
-  
+
+      // Fetch the doctor's profile
+      const doctorProfile = await DoctorProfile.findOne({ userId: doctorId });
+      if (!doctorProfile) {
+          return res.status(404).json({ success: false, message: 'Doctor profile not found' });
+      }
+
+      // Combine user and doctor profile data
+      const fullDoctorData = {
+          firstName: user.firstName,
+          lastName: user.lastName,
+          gender: user.gender,
+          email: user.email,
+          profileImage: user.profileImage,
+          specialty: doctorProfile.specialty,
+          credentials: doctorProfile.credentials,
+          approved: doctorProfile.approved,
+          consultationFee: doctorProfile.consultationFee,
+          availability: doctorProfile.availability,
+          contact: doctorProfile.contact,
+          createdAt: doctorProfile.createdAt,
+          updatedAt: doctorProfile.updatedAt
+      };
+
       res.status(200).json({
-        success: true,
-        data: doctorProfile
+          success: true,
+          data: fullDoctorData
       });
-    } catch (error) {
+  } catch (error) {
       console.error('Get doctor profile error:', error);
       res.status(500).json({ success: false, message: error.message });
-    }
-  };
+  }
+};
 
 // Doctor Profile Update
 // Update the profile of the logged-in doctor
 exports.updateDoctorProfile = async (req, res) => {
-    try {
+  try {
       console.log('updateDoctorProfile - req.user:', req.user); // Debug log
       if (!req.user) {
-        return res.status(401).json({ success: false, message: 'User not authenticated' });
+          return res.status(401).json({ success: false, message: 'User not authenticated' });
       }
-  
+
       const doctorId = req.user._id;
       const updates = req.body; // Fields to update
-  
+
       // Validate the doctor's profile exists
       const doctorProfile = await DoctorProfile.findOne({ userId: doctorId });
       if (!doctorProfile) {
-        return res.status(404).json({ success: false, message: 'Doctor profile not found' });
+          return res.status(404).json({ success: false, message: 'Doctor profile not found' });
       }
-  
-      // Update the valid fields
-      const validFields = ['specialty', 'credentials', 'consultationFee', 'contact'];
+
+      // Check if the new email already exists in the database
+      if (updates.email) {
+          const existingUser = await User.findOne({ email: updates.email, _id: { $ne: doctorId } });
+          if (existingUser) {
+              return res.status(400).json({ success: false, message: 'Email is already in use by another user' });
+          }
+      }
+
+      // Update the User model fields
+      const userUpdateFields = {};
+      const validUserFields = ['firstName', 'lastName', 'email', 'password', 'gender', 'profileImage'];
       for (const key in updates) {
-        if (validFields.includes(key)) {
-          doctorProfile[key] = updates[key];
-        }
+          if (validUserFields.includes(key)) {
+              userUpdateFields[key] = updates[key];
+          }
       }
-      doctorProfile.updatedAt = new Date();
-      await doctorProfile.save();
-  
+      userUpdateFields.updatedAt = new Date();
+
+      const updatedUser = await User.findByIdAndUpdate(doctorId, userUpdateFields, { new: true });
+
+      // Update the DoctorProfile model fields
+      const doctorProfileUpdateFields = {};
+      const validProfileFields = ['specialty', 'credentials', 'consultationFee', 'contact'];
+      for (const key in updates) {
+          if (validProfileFields.includes(key)) {
+              doctorProfileUpdateFields[key] = updates[key];
+          }
+      }
+      doctorProfileUpdateFields.updatedAt = new Date();
+
+      const updatedDoctorProfile = await DoctorProfile.findOneAndUpdate(
+          { userId: doctorId },
+          doctorProfileUpdateFields,
+          { new: true }
+      );
+
       res.status(200).json({
-        success: true,
-        message: 'Doctor profile updated successfully',
-        data: doctorProfile
+          success: true,
+          message: 'Doctor profile updated successfully',
+          data: {
+              user: updatedUser,
+              doctorProfile: updatedDoctorProfile
+          }
       });
-    } catch (error) {
+  } catch (error) {
       console.error('Update doctor profile error:', error);
       res.status(500).json({ success: false, message: error.message });
-    }
-  };
-
+  }
+};
   
