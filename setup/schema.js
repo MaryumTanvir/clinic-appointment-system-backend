@@ -175,13 +175,14 @@ db.createCollection("feedback", {
   validator: {
     $jsonSchema: {
       bsonType: "object",
-      required: ["appointmentId", "patientId", "doctorId", "rating"],
+      required: ["appointmentId", "patientId", "doctorId", "rating", "status"],
       properties: {
         appointmentId: { bsonType: "objectId" },
         patientId: { bsonType: "objectId" },
         doctorId: { bsonType: "objectId" },
-        rating: {  bsonType: ["int", "double"] },
+        rating: { bsonType: ["int", "double"] },
         comments: { bsonType: "string" },
+        status: { enum: ["pending", "reviewed"] },
         createdAt: { bsonType: "date" }
       }
     }
@@ -340,7 +341,7 @@ db.users.insertMany([
 db.doctorProfiles.insertMany([
   {
     userId: doctorIds[0],
-    specialty: "Dermatologist",
+    specialty: "Dermatology",
     credentials: "MBBS, FCPS",
     approved: true,
     consultationFee: 2500,
@@ -354,7 +355,7 @@ db.doctorProfiles.insertMany([
   },
   {
     userId: doctorIds[1],
-    specialty: "Cardiologist",
+    specialty: "Cardiology",
     credentials: "MBBS, MD",
     approved: true,
     consultationFee: 3000,
@@ -368,7 +369,7 @@ db.doctorProfiles.insertMany([
   },
   {
     userId: doctorIds[2],
-    specialty: "Neurologist",
+    specialty: "Neurology",
     credentials: "MBBS, MRCP",
     approved: true,
     consultationFee: 3500,
@@ -503,8 +504,37 @@ db.appointments.insertMany([ { _id: appointmentIds[0], patientId: patientIds[0],
 
 // FEEDBACK
 
-db.feedback.insertMany([ { appointmentId: appointmentIds[1], patientId: patientIds[1], doctorId: doctorIds[1], rating: 4.7, comments: "Very helpful and kind.", createdAt: new Date() }, { appointmentId: appointmentIds[0], patientId: patientIds[0], doctorId: doctorIds[0], rating: 4.2, comments: "Quick diagnosis.", createdAt: new Date() }, { appointmentId: appointmentIds[2], patientId: patientIds[2], doctorId: doctorIds[2], rating: 3.0,  comments: "Appointment was cancelled.", createdAt: new Date() } ]);
+// FEEDBACK
+db.feedback.insertMany([
+  { 
+    appointmentId: appointmentIds[1], 
+    patientId: patientIds[1], 
+    doctorId: doctorIds[1], 
+    rating: 4.7, 
+    comments: "Very helpful and kind.", 
+    status: "reviewed",
+    createdAt: new Date() 
+  }, 
+  { 
+    appointmentId: appointmentIds[0], 
+    patientId: patientIds[0], 
+    doctorId: doctorIds[0], 
+    rating: 4.2, 
+    comments: "Quick diagnosis.", 
+    status: "pending",
+    createdAt: new Date() 
+  }, 
+  { 
+    appointmentId: appointmentIds[2], 
+    patientId: patientIds[2], 
+    doctorId: doctorIds[2], 
+    rating: 3.0,  
+    comments: "Appointment was cancelled.", 
+    status: "reviewed",
+    createdAt: new Date() 
+  } 
+]);
 
 // PAYMENTS 
-db.payments.insertMany([ { appointmentId: appointmentIds[0], patientId: patientIds[0], doctorId: doctorIds[0], amount: Number("2500.00"), status: "paid", method: "card", paidAt: new Date(), createdAt: new Date() }, { appointmentId: appointmentIds[1], patientId: patientIds[1], doctorId: doctorIds[1], amount: Number("3000.00"), status: "paid", method: "cash", paidAt: new Date(), createdAt: new Date() }, { appointmentId: appointmentIds[2], patientId: patientIds[2], doctorId: doctorIds[2], amount: Number("3500.00"), status: "pending", method: "card", createdAt: new Date() } ]);
+db.payments.insertMany([ { appointmentId: appointmentIds[0], patientId: patientIds[0], doctorId: doctorIds[0], amount: Number("2500.00"), status: "pending", method: "card", paidAt: new Date(), createdAt: new Date() }, { appointmentId: appointmentIds[1], patientId: patientIds[1], doctorId: doctorIds[1], amount: Number("3000.00"), status: "paid", method: "cash", paidAt: new Date(), createdAt: new Date() }, { appointmentId: appointmentIds[2], patientId: patientIds[2], doctorId: doctorIds[2], amount: Number("3500.00"), status: "pending", method: "card", createdAt: new Date() } ]);
 

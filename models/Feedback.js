@@ -6,6 +6,7 @@ const feedbackSchema = new mongoose.Schema({
   doctorId: { type: mongoose.Schema.Types.ObjectId, required: true, ref: 'User' },
   rating: { type: Number, required: true },
   comments: String,
+  status: { type: String, enum: ['pending', 'reviewed'], required: true },
   createdAt: Date
 });
 

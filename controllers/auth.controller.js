@@ -1,6 +1,7 @@
 const User = require('../models/User');
 const PatientProfile = require('../models/PatientProfile');
 const DoctorProfile = require('../models/DoctorProfile');
+const DoctorRequest = require('../models/DoctorRequest');
 const AdminProfile = require('../models/AdminProfile');
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
@@ -47,8 +48,6 @@ exports.login = async (req, res) => {
 exports.signup = async (req, res) => {
   try {
     const { firstName, lastName, gender, email, password, role, profile } = req.body;
-    // here profile includes info specific to the role
-    // The image for profile would be added later
 
     // Validate required fields
     if (!firstName || !lastName || !gender || !email || !password || !role) {
@@ -68,10 +67,35 @@ exports.signup = async (req, res) => {
     }
 
     // Hash password
-    // bcrypt
     const hashedPassword = await bcrypt.hash(password, 10);
 
-    // Create user
+    if (role === 'doctor') {
+      // Handle doctor signup by creating a DoctorRequest
+      const { specialty, credentials, contact } = profile || {};
+      if (!specialty || !credentials) {
+        return res.status(400).json({ success: false, message: 'Specialty and credentials are required for doctor signup' });
+      }
+
+      await DoctorRequest.create({
+        firstName,
+        lastName,
+        gender,
+        email,
+        password: hashedPassword,
+        credentials,
+        specialty,
+        contact: contact || {},
+        status: 'pending', // Default status
+        requestedAt: new Date()
+      });
+
+      return res.status(201).json({
+        success: true,
+        message: 'Doctor signup request submitted. Awaiting admin approval.'
+      });
+    }
+
+    // Create user for other roles
     const user = await User.create({
       firstName,
       lastName,
@@ -91,22 +115,6 @@ exports.signup = async (req, res) => {
         age,
         contact: contact || {},
         medicalHistory: medicalHistory || [],
-        createdAt: new Date(),
-        updatedAt: new Date()
-      });
-    } else if (role === 'doctor') {
-      const { specialty, credentials, consultationFee, availability, contact } = profile || {};
-      if (!specialty || !consultationFee) {
-        return res.status(400).json({ success: false, message: 'Specialty and consultationFee are required for doctor profile' });
-      }
-      await DoctorProfile.create({
-        userId: user._id,
-        specialty,
-        credentials,
-        approved: false, // Default to false, admin must approve
-        consultationFee,
-        availability: availability || [],
-        contact: contact || {},
         createdAt: new Date(),
         updatedAt: new Date()
       });

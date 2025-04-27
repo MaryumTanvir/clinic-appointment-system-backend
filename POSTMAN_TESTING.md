@@ -1,7 +1,3 @@
-Got it — here's the exact same markdown you asked for, but **without any emojis** for a clean, professional version:
-
----
-
 # Clinic Appointment System – Postman API Testing
 
 ## Base URL
@@ -17,6 +13,7 @@ http://localhost:5000/api
 All endpoints except `/auth/signup` and `/auth/login` require an `Authorization` header with a JWT token obtained from the login endpoint.
 
 **Header Format**:
+
 ```
 Authorization: Bearer <token>
 ```
@@ -158,7 +155,6 @@ Authorization: Bearer <token>
   }
 }
 ```
-
 
 ---
 
@@ -311,8 +307,6 @@ Authorization: Bearer <token>
 ```
 
 ---
-
-
 
 ---
 
@@ -572,6 +566,7 @@ Authorization: Bearer <token>
   }
 }
 ```
+
 ---
 
 ### Post Patient Payments
@@ -587,10 +582,7 @@ Authorization: Bearer <token>
 
 ```json
 {
-  "appointmentIds": [
-    "680c85b95639b34217b5f89f",
-    "680c85b95639b34217b5f8a1"
-  ],
+  "appointmentIds": ["680c85b95639b34217b5f89f", "680c85b95639b34217b5f8a1"],
   "method": "credit_card"
 }
 ```
@@ -627,6 +619,7 @@ Authorization: Bearer <token>
   ]
 }
 ```
+
 ---
 
 ### Post Patient Appointment
@@ -668,6 +661,593 @@ Authorization: Bearer <token>
   }
 }
 ```
+
+---
+
+### Get Patient Appointments by Time Period
+
+- **Method**: `GET`
+- **Endpoint**: `/patients/appointments?time=<past|today|future>`
+- **URL**: `http://localhost:5000/api/patients/appointments?time=past`
+- **Description**: Fetches the authenticated patient’s appointments filtered by time period (past, today, or future).
+- **Authorization**: Bearer Token (Patient)
+- **Content-Type**: None
+
+#### Query Parameters
+
+- `time` (required): One of `past`, `today`, or `future`.
+
+#### Sample Response (200 OK)
+
+````json
+{
+  "success": true,
+  "count": 1,
+  "data": [
+    {
+      "_id": "680c85b95639b34217b5f8a3",
+      "patientId": "680c85b95639b34217b5f89a",
+      "doctorId": {
+        "_id": "680c85b95639b34217b5f89d",
+        "firstName": "John",
+        "lastName": "Smith"
+      },
+      "date": "2025-04-25T00:00:00.000Z",
+      "time": "09:00",
+      "status": "completed",
+      "notes": "Follow-up for chest pain",
+      "createdAt": "2025-04-24T12:41:00.000Z",
+      "updatedAt": "2025-04-24T12:41:00.000Z"
+    }
+  ]
+}
+
+---
+### Cancel Appointment
+
+- **Method**: `PUT`
+- **Endpoint**: `/patients/appointments/:id/cancel`
+- **Example URL**: `http://localhost:5000/api/patients/appointments/680c85b95639b34217b5f8a3/cancel`
+- **Description**: Cancels a scheduled or rescheduled appointment, updates associated pending payment to cancelled, and frees the doctor’s availability slot.
+- **Authorization**: Bearer Token (Patient)
+- **Content-Type**: None
+
+#### Sample Response (200 OK)
+
+```json
+{
+  "success": true,
+  "message": "Appointment cancelled successfully",
+  "data": {
+    "_id": "680c85b95639b34217b5f8a3",
+    "patientId": "680c85b95639b34217b5f89a",
+    "doctorId": "680c85b95639b34217b5f89d",
+    "date": "2025-05-01T00:00:00.000Z",
+    "time": "09:00",
+    "status": "cancelled",
+    "notes": "Follow-up for chest pain",
+    "createdAt": "2025-04-26T12:41:00.000Z",
+    "updatedAt": "2025-04-26T12:45:00.000Z"
+  }
+}
+---
+
+---
+
+### Reschedule Appointment
+
+- **Method**: `PUT`
+- **Endpoint**: `/patients/appointments/:id/reschedule`
+- **Example URL**: `http://localhost:5000/api/patients/appointments/680c85b95639b34217b5f8a3/reschedule`
+- **Description**: Reschedules an appointment to a new date and time, updates notes if provided, and ensures the new slot is available.
+- **Authorization**: Bearer Token (Patient)
+- **Content-Type**: `application/json`
+
+#### Request Body
+
+```json
+{
+  "date": "2025-05-02",
+  "time": "10:00",
+  "notes": "Rescheduled follow-up for chest pain"
+}
+````
+
+#### Sample Response (200 OK)
+
+```json
+{
+  "success": true,
+  "message": "Appointment rescheduled successfully",
+  "data": {
+    "_id": "680c85b95639b34217b5f8a3",
+    "patientId": "680c85b95639b34217b5f89a",
+    "doctorId": "680c85b95639b34217b5f89d",
+    "date": "2025-05-02T00:00:00.000Z",
+    "time": "10:00",
+    "status": "rescheduled",
+    "notes": "Rescheduled follow-up for chest pain",
+    "rescheduledFrom": "680c85b95639b34217b5f8a3",
+    "createdAt": "2025-04-26T12:41:00.000Z",
+    "updatedAt": "2025-04-26T12:45:00.000Z"
+  }
+}
+```
+
+---
+
+---
+
+### Step 4: Test the Endpoints
+
+#### 4.1 Seed Test Data
+
+Ensure your `users`, `doctorProfiles`, `appointments`, and `payments` collections have relevant data. Use the reference script or manually insert:
+
+```bash
+mongosh
+use clinic-management-system
+db.users.insertMany([
+  {
+    _id: ObjectId("680c85b95639b34217b5f89a"),
+    firstName: "Ahmed",
+    lastName: "Khan",
+    gender: "male",
+    email: "ahmed@clinic.com",
+    password: "$2b$10$...",
+    role: "patient",
+    createdAt: new Date(),
+    updatedAt: new Date()
+  },
+  {
+    _id: ObjectId("680c85b95639b34217b5f89d"),
+    firstName: "John",
+    lastName: "Smith",
+    gender: "male",
+    email: "john.smith@clinic.com",
+    password: "$2b$10$...",
+    role: "doctor",
+    createdAt: new Date(),
+    updatedAt: new Date()
+  }
+]);
+db.doctorProfiles.insertOne({
+  userId: ObjectId("680c85b95639b34217b5f89d"),
+  specialty: "Cardiology",
+  credentials: "MBBS, MD",
+  approved: true,
+  consultationFee: 2500,
+  availability: [
+    { date: ISODate("2025-05-01"), time: "09:00", available: false },
+    { date: ISODate("2025-05-02"), time: "10:00", available: true }
+  ],
+  contact: { phone: "0987654321", location: "Clinic A" },
+  createdAt: new Date(),
+  updatedAt: new Date()
+});
+db.appointments.insertOne({
+  _id: ObjectId("680c85b95639b34217b5f8a3"),
+  patientId: ObjectId("680c85b95639b34217b5f89a"),
+  doctorId: ObjectId("680c85b95639b34217b5f89d"),
+  date: ISODate("2025-05-01"),
+  time: "09:00",
+  status: "scheduled",
+  notes: "Follow-up for chest pain",
+  createdAt: new Date(),
+  updatedAt: new Date()
+});
+db.payments.insertOne({
+  appointmentId: ObjectId("680c85b95639b34217b5f8a3"),
+  patientId: ObjectId("680c85b95639b34217b5f89a"),
+  doctorId: ObjectId("680c85b95639b34217b5f89d"),
+  amount: 2500,
+  status: "pending",
+  createdAt: new Date()
+});
+```
+
+#### 4.2 Get a JWT Token
+
+- **Request**:
+  - **Method**: `POST`
+  - **URL**: `http://localhost:5000/api/auth/login`
+  - **Body**:
+    ```json
+    {
+      "email": "ahmed@clinic.com",
+      "password": "hashedPatient1" // Replace with original password
+    }
+    ```
+  - **Expected**:
+    ```json
+    {
+      "success": true,
+      "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+    }
+    ```
+
+#### 4.3 Test Cancel Appointment
+
+- **Request**:
+  - **Method**: `PUT`
+  - **URL**: `http://localhost:5000/api/patients/appointments/680c85b95639b34217b5f8a3/cancel`
+  - **Headers**:
+    - `Authorization: Bearer <token>`
+  - **Expected Response** (200 OK):
+    ```json
+    {
+      "success": true,
+      "message": "Appointment cancelled successfully",
+      "data": {
+        "_id": "680c85b95639b34217b5f8a3",
+        "patientId": "680c85b95639b34217b5f89a",
+        "doctorId": "680c85b95639b34217b5f89d",
+        "date": "2025-05-01T00:00:00.000Z",
+        "time": "09:00",
+        "status": "cancelled",
+        "notes": "Follow-up for chest pain",
+        "createdAt": "2025-04-26T12:41:00.000Z",
+        "updatedAt": "2025-04-26T12:45:00.000Z"
+      }
+    }
+    ```
+- **Verify**:
+  ```bash
+  use clinic-management-system
+  db.appointments.findOne({ _id: ObjectId("680c85b95639b34217b5f8a3") }).pretty()
+  db.payments.findOne({ appointmentId: ObjectId("680c85b95639b34217b5f8a3") }).pretty()
+  db.doctorProfiles.findOne({ userId: ObjectId("680c85b95639b34217b5f89d") }).pretty()
+  ```
+  - Appointment `status`: `cancelled`.
+  - Payment `status`: `cancelled` (if previously `pending`).
+  - Doctor `availability`: `available: true` for `2025-05-01`, `09:00`.
+
+#### 4.4 Test Reschedule Appointment
+
+- **Request**:
+  - **Method**: `PUT`
+  - **URL**: `http://localhost:5000/api/patients/appointments/680c85b95639b34217b5f8a3/reschedule`
+  - **Headers**:
+    - `Authorization: Bearer <token>`
+    - `Content-Type: application/json`
+  - **Body**:
+    ```json
+    {
+      "date": "2025-05-02",
+      "time": "10:00",
+      "notes": "Rescheduled follow-up for chest pain"
+    }
+    ```
+  - **Expected Response** (200 OK):
+    ```json
+    {
+      "success": true,
+      "message": "Appointment rescheduled successfully",
+      "data": {
+        "_id": "680c85b95639b34217b5f8a3",
+        "patientId": "680c85b95639b34217b5f89a",
+        "doctorId": "680c85b95639b34217b5f89d",
+        "date": "2025-05-02T00:00:00.000Z",
+        "time": "10:00",
+        "status": "rescheduled",
+        "notes": "Rescheduled follow-up for chest pain",
+        "rescheduledFrom": "680c85b95639b34217b5f8a3",
+        "createdAt": "2025-04-26T12:41:00.000Z",
+        "updatedAt": "2025-04-26T12:45:00.000Z"
+      }
+    }
+    ```
+
+---
+
+# Doctor Routes — Clinic Appointment System
+
+---
+
+## 1. Get Assigned Shifts
+
+- **Method**: `GET`
+- **Endpoint**: `/doctors/shifts`
+- **URL**: `http://localhost:5000/api/doctors/shifts`
+- **Description**: Fetches the shifts assigned to the logged-in doctor, filtered by time period (`past`, `today`, or `future`).
+- **Authentication**: Bearer Token (Doctor)
+
+#### Query Parameters
+
+- `filter` (optional): One of `past`, `today`, or `future`.
+
+#### Example URL
+
+```
+http://localhost:5000/api/doctors/shifts?filter=today
+```
+
+#### Sample Response (200 OK)
+
+```json
+{
+  "success": true,
+  "count": 2,
+  "data": [
+    {
+      "_id": "shift-objectid",
+      "doctorId": "doctor-objectid",
+      "date": "2025-05-01T00:00:00.000Z",
+      "startTime": "09:00",
+      "endTime": "17:00",
+      "shiftType": "morning",
+      "location": "Cardiology Department",
+      "createdBy": "admin-objectid",
+      "createdAt": "2025-04-25T12:00:00.000Z"
+    }
+  ]
+}
+```
+
+---
+
+## 2. Get Appointments
+
+- **Method**: `GET`
+- **Endpoint**: `/doctors/appointments`
+- **URL**: `http://localhost:5000/api/doctors/appointments`
+- **Description**: Fetches the appointments for the logged-in doctor, filtered by time period (`past`, `today`, or `future`).
+- **Authentication**: Bearer Token (Doctor)
+
+#### Query Parameters
+
+- `filter` (optional): One of `past`, `today`, or `future`.
+
+#### Example URL
+
+```
+http://localhost:5000/api/doctors/appointments?filter=future
+```
+
+#### Sample Response (200 OK)
+
+```json
+{
+  "success": true,
+  "count": 1,
+  "data": [
+    {
+      "_id": "appointment-objectid",
+      "patientId": {
+        "_id": "patient-objectid",
+        "firstName": "Jane",
+        "lastName": "Doe",
+        "email": "jane.doe@example.com",
+        "contact": {
+          "phone": "1234567890",
+          "address": "123 Main St"
+        }
+      },
+      "doctorId": "doctor-objectid",
+      "date": "2025-05-02T00:00:00.000Z",
+      "time": "10:00",
+      "status": "scheduled",
+      "notes": "Follow-up for chest pain"
+    }
+  ]
+}
+```
+
+---
+
+## 3. Update Appointment Status
+
+- **Method**: `PUT`
+- **Endpoint**: `/doctors/appointments/:appointmentId/status`
+- **URL Example**: `http://localhost:5000/api/doctors/appointments/appointment-objectid/status`
+- **Description**: Updates the status of an appointment (`completed` or `cancelled`) for the logged-in doctor.
+- **Authentication**: Bearer Token (Doctor)
+- **Content-Type**: `application/json`
+
+#### Request Body
+
+```json
+{
+  "status": "completed"
+}
+```
+
+#### Sample Response (200 OK)
+
+```json
+{
+  "success": true,
+  "message": "Appointment status updated to completed",
+  "data": {
+    "_id": "appointment-objectid",
+    "patientId": "patient-objectid",
+    "doctorId": "doctor-objectid",
+    "date": "2025-05-02T00:00:00.000Z",
+    "time": "10:00",
+    "status": "completed",
+    "notes": "Follow-up for chest pain",
+    "updatedAt": "2025-04-27T12:00:00.000Z"
+  }
+}
+```
+
+---
+
+## 4. Get Feedback
+
+- **Method**: `GET`
+- **Endpoint**: `/doctors/feedback`
+- **URL**: `http://localhost:5000/api/doctors/feedback`
+- **Description**: Fetches feedback for the logged-in doctor, including details of the related appointment and patient.
+- **Authentication**: Bearer Token (Doctor)
+
+#### Sample Response (200 OK)
+
+```json
+{
+  "success": true,
+  "count": 2,
+  "data": [
+    {
+      "_id": "feedback-objectid",
+      "appointmentId": {
+        "_id": "appointment-objectid",
+        "date": "2025-05-01T00:00:00.000Z",
+        "time": "09:00",
+        "status": "completed"
+      },
+      "patientId": {
+        "_id": "patient-objectid",
+        "firstName": "Jane",
+        "lastName": "Doe",
+        "email": "jane.doe@example.com"
+      },
+      "rating": 5,
+      "comments": "Excellent consultation, very thorough.",
+      "status": "reviewed",
+      "createdAt": "2025-04-26T12:45:00.000Z"
+    }
+  ]
+}
+```
+
+---
+
+## 5. Update Feedback Status
+
+- **Method**: `PUT`
+- **Endpoint**: `/doctors/feedback/:feedbackId/status`
+- **URL Example**: `http://localhost:5000/api/doctors/feedback/feedback-objectid/status`
+- **Description**: Updates the status of feedback (`reviewed` or `pending`) for the logged-in doctor.
+- **Authentication**: Bearer Token (Doctor)
+- **Content-Type**: `application/json`
+
+#### Request Body
+
+```json
+{
+  "status": "reviewed"
+}
+```
+
+#### Sample Response (200 OK)
+
+```json
+{
+  "success": true,
+  "message": "Feedback status updated to reviewed",
+  "data": {
+    "_id": "feedback-objectid",
+    "appointmentId": "appointment-objectid",
+    "patientId": "patient-objectid",
+    "doctorId": "doctor-objectid",
+    "rating": 5,
+    "comments": "Excellent consultation, very thorough.",
+    "status": "reviewed",
+    "createdAt": "2025-04-26T12:45:00.000Z"
+  }
+}
+```
+
+---
+
+## 6. Get Doctor Profile
+
+- **Method**: `GET`
+- **Endpoint**: `/doctors/profile`
+- **URL**: `http://localhost:5000/api/doctors/profile`
+- **Description**: Fetches the profile of the logged-in doctor.
+- **Authentication**: Bearer Token (Doctor)
+
+#### Sample Response (200 OK)
+
+```json
+{
+  "success": true,
+  "data": {
+    "_id": "doctor-profile-objectid",
+    "userId": {
+      "_id": "doctor-objectid",
+      "firstName": "John",
+      "lastName": "Smith",
+      "email": "john.smith@example.com"
+    },
+    "specialty": "Cardiology",
+    "credentials": "MD, FACC",
+    "approved": true,
+    "consultationFee": 2500,
+    "availability": [
+      {
+        "date": "2025-05-01T00:00:00.000Z",
+        "time": "09:00",
+        "available": true
+      }
+    ],
+    "contact": {
+      "phone": "0987654321",
+      "location": "Clinic A"
+    },
+    "createdAt": "2025-04-25T12:00:00.000Z",
+    "updatedAt": "2025-04-25T12:00:00.000Z"
+  }
+}
+```
+
+---
+
+## 7. Update Doctor Profile
+
+- **Method**: `PUT`
+- **Endpoint**: `/doctors/profile`
+- **URL**: `http://localhost:5000/api/doctors/profile`
+- **Description**: Updates the profile of the logged-in doctor.
+- **Authentication**: Bearer Token (Doctor)
+- **Content-Type**: `application/json`
+
+#### Request Body
+
+```json
+{
+  "specialty": "Neurology",
+  "credentials": "MD, PhD",
+  "consultationFee": 3000,
+  "contact": {
+    "phone": "1234567890",
+    "location": "Neurology Department"
+  }
+}
+```
+
+#### Sample Response (200 OK)
+
+```json
+{
+  "success": true,
+  "message": "Doctor profile updated successfully",
+  "data": {
+    "_id": "doctor-profile-objectid",
+    "userId": "doctor-objectid",
+    "specialty": "Neurology",
+    "credentials": "MD, PhD",
+    "approved": true,
+    "consultationFee": 3000,
+    "availability": [
+      {
+        "date": "2025-05-01T00:00:00.000Z",
+        "time": "09:00",
+        "available": true
+      }
+    ],
+    "contact": {
+      "phone": "1234567890",
+      "location": "Neurology Department"
+    },
+    "createdAt": "2025-04-25T12:00:00.000Z",
+    "updatedAt": "2025-04-27T12:00:00.000Z"
+  }
+}
+```
+
 ---
 
 ## Notes
@@ -689,4 +1269,3 @@ Authorization: Bearer <token>
   - Verify `patient.controller.js` import to resolve `TypeError: argument handler must be a function`.
 
 ---
-
