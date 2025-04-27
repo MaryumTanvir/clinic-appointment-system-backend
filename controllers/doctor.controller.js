@@ -156,6 +156,63 @@ exports.getAppointments = async (req, res) => {
       }
   };
   
+// Update doctor availability after appointment status change
+exports.updateAvailabilityAfterAppointment = async (req, res) => {
+  try {
+    console.log('updateAvailabilityAfterAppointment - req.user:', req.user);
+    if (!req.user) {
+      return res.status(401).json({ success: false, message: 'User not authenticated' });
+    }
+
+    const doctorId = req.user._id;
+    const { appointmentId } = req.params;
+
+    // Find the appointment
+    const appointment = await Appointment.findOne({ _id: appointmentId, doctorId });
+    if (!appointment) {
+      return res.status(404).json({ success: false, message: 'Appointment not found' });
+    }
+
+    // Only update availability if the appointment is marked as completed
+    if (appointment.status !== 'completed') {
+      return res.status(400).json({ success: false, message: 'Availability only updated for completed appointments' });
+    }
+
+    // Find the doctor's profile
+    const doctorProfile = await DoctorProfile.findOne({ userId: doctorId });
+    if (!doctorProfile) {
+      return res.status(404).json({ success: false, message: 'Doctor profile not found' });
+    }
+
+    // Update the availability slot for the appointment's date and time
+    const appointmentDate = appointment.date;
+    const appointmentTime = appointment.time;
+
+    const availabilityIndex = doctorProfile.availability.findIndex(
+      (slot) =>
+        slot.date.toISOString().split('T')[0] === appointmentDate.toISOString().split('T')[0] &&
+        slot.time === appointmentTime
+    );
+
+    if (availabilityIndex !== -1) {
+      // Mark the slot as unavailable since the appointment is completed
+      doctorProfile.availability[availabilityIndex].available = false;
+      doctorProfile.updatedAt = new Date();
+      await doctorProfile.save();
+    }
+
+    res.status(200).json({
+      success: true,
+      message: 'Availability updated successfully',
+      data: doctorProfile.availability
+    });
+  } catch (error) {
+    console.error('Update availability error:', error);
+    res.status(500).json({ success: false, message: error.message });
+  }
+};
+
+
 
   // Feedback View
   // Get feedback for the logged-in doctor

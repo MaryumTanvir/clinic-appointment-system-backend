@@ -18,6 +18,8 @@ router.get('/appointments', authMiddleware, doctorController.getAppointments);
 // PUT update appointment status
 router.put('/appointments/:appointmentId/status', authMiddleware, doctorController.updateAppointmentStatus);
 
+// PUT update doctor availability after appointment status change
+router.put('/appointments/:appointmentId/availability', authMiddleware, doctorController.updateAvailabilityAfterAppointment);
 
 //////// FEEDBACK ROUTES
 
