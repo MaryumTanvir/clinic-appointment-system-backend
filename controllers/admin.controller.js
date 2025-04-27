@@ -1,11 +1,10 @@
-const mongoose = require('mongoose');
-const AdminProfile = require('../models/AdminProfile');
-const DoctorRequest = require('../models/DoctorRequest');
-const DoctorProfile = require('../models/DoctorProfile');
-const User = require('../models/User');
-const Shift = require('../models/Shift');
-const Appointment = require('../models/Appointment');
-
+const mongoose = require('mongoose')
+const AdminProfile = require('../models/AdminProfile')
+const DoctorRequest = require('../models/DoctorRequest')
+const DoctorProfile = require('../models/DoctorProfile')
+const User = require('../models/User')
+const Shift = require('../models/Shift')
+const Appointment = require('../models/Appointment')
 
 
 /////////// Manage Admin
@@ -14,16 +13,20 @@ const Appointment = require('../models/Appointment');
 
 exports.getAdminProfile = async (req, res) => {
   try {
-    const adminUserId = req.user.id;
+    const adminUserId = req.user.id
 
-    const user = await User.findById(adminUserId);
+    const user = await User.findById(adminUserId)
     if (!user || user.role !== 'admin') {
-      return res.status(404).json({ success: false, message: 'Admin user not found' });
+      return res
+        .status(404)
+        .json({ success: false, message: 'Admin user not found' })
     }
 
-    const adminProfile = await AdminProfile.findOne({ userId: adminUserId });
+    const adminProfile = await AdminProfile.findOne({ userId: adminUserId })
     if (!adminProfile) {
-      return res.status(404).json({ success: false, message: 'Admin profile not found' });
+      return res
+        .status(404)
+        .json({ success: false, message: 'Admin profile not found' })
     }
 
     const fullAdminData = {
@@ -37,103 +40,116 @@ exports.getAdminProfile = async (req, res) => {
       contact: adminProfile.contact,
       createdAt: adminProfile.createdAt,
       updatedAt: adminProfile.updatedAt
-    };
+    }
 
     res.status(200).json({
       success: true,
       data: fullAdminData
-    });
-
+    })
   } catch (error) {
-    console.error(error);
-    res.status(500).json({ success: false, message: 'Server error' });
+    console.error(error)
+    res.status(500).json({ success: false, message: 'Server error' })
   }
-};
-
+}
 
 //update admin profile
+
 exports.updateAdminProfile = async (req, res) => {
   try {
-    const adminId = req.user._id; // comes from JWT token
+    const adminId = req.user.id
 
-    const { firstName, lastName, gender, email, profileImage, department, designation, contact } = req.body;
+    const {
+      firstName,
+      lastName,
+      gender,
+      profileImage,
+      department,
+      designation,
+      contact
+    } = req.body
 
-    // Update User table
-    const userUpdateFields = { updatedAt: new Date() };
-    if (firstName) userUpdateFields.firstName = firstName;
-    if (lastName) userUpdateFields.lastName = lastName;
-    if (gender) userUpdateFields.gender = gender;
-    if (email) userUpdateFields.email = email;
-    if (profileImage) userUpdateFields.profileImage = profileImage;
+    // Fetch admin
+    const admin = await User.findById(adminId)
+    if (!admin || admin.role !== 'admin') {
+      return res
+        .status(404)
+        .json({ success: false, message: 'Admin not found' })
+    }
 
-    const updatedUser = await User.findByIdAndUpdate(adminId, userUpdateFields, { new: true });
+    // ONLY update allowed fields, not email
+    if (firstName) admin.firstName = firstName
+    if (lastName) admin.lastName = lastName
+    if (gender) admin.gender = gender
+    if (profileImage) admin.profileImage = profileImage
+    admin.updatedAt = new Date()
 
-    // Update AdminProfile table
-    const adminProfileUpdateFields = { updatedAt: new Date() };
-    if (department) adminProfileUpdateFields.department = department;
-    if (designation) adminProfileUpdateFields.designation = designation;
-    if (contact) adminProfileUpdateFields.contact = contact;
+    await admin.save()
 
-    const updatedAdminProfile = await AdminProfile.findOneAndUpdate({ userId: adminId }, adminProfileUpdateFields, { new: true });
+    // Update AdminProfile
+    const adminProfile = await AdminProfile.findOne({ userId: adminId })
+    if (adminProfile) {
+      if (department) adminProfile.department = department
+      if (designation) adminProfile.designation = designation
+      if (contact) adminProfile.contact = contact
+      adminProfile.updatedAt = new Date()
+      await adminProfile.save()
+    }
 
     res.status(200).json({
       success: true,
       message: 'Admin profile updated successfully',
       data: {
-        user: updatedUser,
-        adminProfile: updatedAdminProfile
+        user: admin,
+        adminProfile
       }
-    });
+    })
   } catch (error) {
-    console.error('Update admin profile error:', error);
-    res.status(500).json({ success: false, message: 'Server error' });
+    console.error('Update admin profile error:', error)
+    res.status(500).json({ success: false, message: 'Server error' })
   }
-};
-
+}
 
 /////////  Manage Doctor Requests
 
 // Get all pending doctor requests
 exports.getPendingDoctorRequests = async (req, res) => {
   try {
-    const requests = await DoctorRequest.find({ status: 'pending' });
+    const requests = await DoctorRequest.find({ status: 'pending' })
     res.status(200).json({
       success: true,
       count: requests.length,
       data: requests
-    });
+    })
   } catch (error) {
-    res.status(500).json({ success: false, message: error.message });
+    res.status(500).json({ success: false, message: error.message })
   }
-};
-
+}
 
 exports.approveDoctor = async (req, res) => {
   try {
-    const requestId = req.params.id;
+    const requestId = req.params.id
 
     // Fetch the doctor request
-    const request = await DoctorRequest.findById(requestId);
+    const request = await DoctorRequest.findById(requestId)
 
     if (!request) {
       return res.status(404).json({
         success: false,
         message: 'Doctor request not found'
-      });
+      })
     }
 
     if (request.status === 'approved') {
       return res.status(400).json({
         success: false,
         message: 'This doctor request is already approved'
-      });
+      })
     }
-    
 
     // Update status and reviewedAt
-    request.status = 'approved';
-    request.reviewedAt = new Date();
-    await request.save();
+    request.status = 'approved'
+    request.reviewedAt = new Date()
+    await request.save()
 
     // Create the user
     const user = await User.create({
@@ -146,7 +162,7 @@ exports.approveDoctor = async (req, res) => {
       profileImage: request.profileImage,
       createdAt: new Date(),
       updatedAt: new Date()
-    });
+    })
 
     // Create the doctor profile
     const doctorProfile = await DoctorProfile.create({
@@ -157,7 +173,7 @@ exports.approveDoctor = async (req, res) => {
       consultationFee: 2500,
       createdAt: new Date(),
       updatedAt: new Date()
-    });
+    })
 
     return res.status(201).json({
       success: true,
@@ -166,21 +182,20 @@ exports.approveDoctor = async (req, res) => {
         user,
         doctorProfile
       }
-    });
+    })
   } catch (error) {
-    console.error('Approve doctor error:', error);
+    console.error('Approve doctor error:', error)
     res.status(500).json({
       success: false,
       message: error.message || 'Server error'
-    });
+    })
   }
-};
-
+}
 
 // Reject a doctor request
 exports.rejectDoctor = async (req, res) => {
   try {
-    const requestId = req.params.id;
+    const requestId = req.params.id
 
     // Find and update the doctor request
     const updatedRequest = await DoctorRequest.findByIdAndUpdate(
@@ -190,44 +205,57 @@ exports.rejectDoctor = async (req, res) => {
         reviewedAt: new Date()
       },
       { new: true } // return the updated document
-    );
+    )
 
     if (!updatedRequest) {
       return res.status(404).json({
         success: false,
         message: 'Doctor request not found'
-      });
+      })
     }
 
     res.status(200).json({
       success: true,
       message: 'Doctor request rejected successfully',
       data: updatedRequest
-    });
+    })
   } catch (error) {
-    console.error(error);
-    res.status(500).json({ success: false, message: 'Server error' });
+    console.error(error)
+    res.status(500).json({ success: false, message: 'Server error' })
   }
-};
+}
 
-
+//Assign shift to doctor
 exports.assignShift = async (req, res) => {
   try {
-    const { doctorId, date, startTime, endTime, shiftType, location, createdBy } = req.body;
+    const {
+      doctorId,
+      date,
+      startTime,
+      endTime,
+      shiftType,
+      location,
+      createdBy
+    } = req.body
 
     // Check: Date must not be in the past
     if (new Date(date) < new Date()) {
-      return res.status(400).json({ success: false, message: "Cannot assign shift in the past" });
+      return res
+        .status(400)
+        .json({ success: false, message: 'Cannot assign shift in the past' })
     }
 
     // Check: Doctor must not already have a shift assigned on the same date
     const existingShift = await Shift.findOne({
       doctorId,
       date: new Date(date)
-    });
+    })
 
     if (existingShift) {
-      return res.status(400).json({ success: false, message: "Doctor already has a shift assigned on this date" });
+      return res.status(400).json({
+        success: false,
+        message: 'Doctor already has a shift assigned on this date'
+      })
     }
 
     // If no conflicts, assign shift
@@ -240,59 +268,149 @@ exports.assignShift = async (req, res) => {
       location,
       createdBy,
       createdAt: new Date()
-    });
+    })
 
     res.status(201).json({
       success: true,
       message: 'Shift assigned successfully',
       data: shift
-    });
-
+    })
   } catch (error) {
-    console.error(error);
-    res.status(500).json({ success: false, message: error.message });
+    console.error(error)
+    res.status(500).json({ success: false, message: error.message })
+  }
+}
+
+//get shifts
+
+
+
+// GET /api/admin/shifts
+exports.getAllShifts = async (req, res) => {
+  try {
+    const shifts = await Shift.find()
+      .populate('doctorId', 'firstName lastName email') // Populate doctor's basic info
+      .sort({ date: 1 }); // Optional: Sort by upcoming date
+
+    res.status(200).json({
+      success: true,
+      data: shifts,
+    });
+  } catch (error) {
+    console.error('Error fetching shifts:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to fetch shifts.',
+    });
   }
 };
 
 
-/////////// Manage Doctors 
+/////////// Manage Doctors
 
-// Get all users
+//Get all users
 exports.getAllUsers = async (req, res) => {
   try {
-    const users = await User.find();
+    const users = await User.find()
     res.status(200).json({
       success: true,
       count: users.length,
       data: users
-    });
+    })
   } catch (error) {
-    res.status(500).json({ success: false, message: error.message });
+    res.status(500).json({ success: false, message: error.message })
   }
-};
+}
 
-// Delete doctor profile
+//Get a single doctor info using id
+
+exports.getDoctorInfo = async (req, res) => {
+  try {
+    const doctorId = req.params.id
+
+    // Find the user (role: doctor)
+    const doctorUser = await User.findOne({ _id: doctorId, role: 'doctor' })
+    if (!doctorUser) {
+      return res
+        .status(404)
+        .json({ success: false, message: 'Doctor user not found' })
+    }
+
+    // Find the doctor profile
+    const doctorProfile = await DoctorProfile.findOne({ userId: doctorId })
+    if (!doctorProfile) {
+      return res
+        .status(404)
+        .json({ success: false, message: 'Doctor profile not found' })
+    }
+
+    res.status(200).json({
+      success: true,
+      data: {
+        user: doctorUser,
+        profile: doctorProfile
+      }
+    })
+  } catch (error) {
+    console.error('Get doctor info error:', error)
+    res.status(500).json({ success: false, message: 'Server error' })
+  }
+}
+
+//Get all doctors
+
+exports.getAllDoctors = async (req, res) => {
+  try {
+    // Find all users with role doctor
+    const doctors = await User.find({ role: 'doctor' })
+
+    const doctorIds = doctors.map(doc => doc._id)
+
+    // Find their corresponding doctorProfiles
+    const profiles = await DoctorProfile.find({ userId: { $in: doctorIds } })
+
+    res.status(200).json({
+      success: true,
+      count: doctors.length,
+      data: doctors.map(doctor => {
+        const profile = profiles.find(
+          p => p.userId.toString() === doctor._id.toString()
+        )
+        return {
+          user: doctor,
+          profile: profile || null
+        }
+      })
+    })
+  } catch (error) {
+    console.error('Get all doctors error:', error)
+    res.status(500).json({ success: false, message: 'Server error' })
+  }
+}
+
 // Delete doctor profile (only if no appointments)
 exports.deleteDoctorProfile = async (req, res) => {
   try {
-    const userId = req.params.id;
+    const userId = req.params.id
 
     // Check if doctor has any appointments
-    const existingAppointments = await Appointment.find({ doctorId: userId });
+    const existingAppointments = await Appointment.find({ doctorId: userId })
 
     if (existingAppointments.length > 0) {
       return res.status(400).json({
         success: false,
         message: 'Cannot delete doctor. Doctor has active or past appointments.'
-      });
+      })
     }
 
     // If no appointments, proceed to delete
-    const deletedProfile = await DoctorProfile.findOneAndDelete({ userId });
-    const deletedUser = await User.findByIdAndDelete(userId);
+    const deletedProfile = await DoctorProfile.findOneAndDelete({ userId })
+    const deletedUser = await User.findByIdAndDelete(userId)
 
     if (!deletedProfile || !deletedUser) {
-      return res.status(404).json({ success: false, message: 'Doctor not found' });
+      return res
+        .status(404)
+        .json({ success: false, message: 'Doctor not found' })
     }
 
     res.status(200).json({
@@ -300,19 +418,27 @@ exports.deleteDoctorProfile = async (req, res) => {
       message: 'Doctor profile deleted successfully',
       deletedProfile,
       deletedUser
-    });
-
+    })
   } catch (error) {
-    console.error(error);
-    res.status(500).json({ success: false, message: error.message });
+    console.error(error)
+    res.status(500).json({ success: false, message: error.message })
   }
-};
+}
 
 // Update Doctor Info
 exports.updateDoctorInfo = async (req, res) => {
   try {
-    const userId = req.params.id;
-    const { firstName, lastName, gender, specialty, credentials, consultationFee, phone, location } = req.body;
+    const userId = req.params.id
+    const {
+      firstName,
+      lastName,
+      gender,
+      specialty,
+      credentials,
+      consultationFee,
+      phone,
+      location
+    } = req.body
 
     // Update user basic info
     const updatedUser = await User.findByIdAndUpdate(
@@ -324,7 +450,7 @@ exports.updateDoctorInfo = async (req, res) => {
         updatedAt: new Date()
       },
       { new: true }
-    );
+    )
 
     // Update doctor profile info
     const updatedProfile = await DoctorProfile.findOneAndUpdate(
@@ -338,13 +464,13 @@ exports.updateDoctorInfo = async (req, res) => {
         updatedAt: new Date()
       },
       { new: true }
-    );
+    )
 
     if (!updatedUser || !updatedProfile) {
       return res.status(404).json({
         success: false,
         message: 'Doctor not found'
-      });
+      })
     }
 
     res.status(200).json({
@@ -354,9 +480,9 @@ exports.updateDoctorInfo = async (req, res) => {
         user: updatedUser,
         doctorProfile: updatedProfile
       }
-    });
+    })
   } catch (error) {
-    console.error(error);
-    res.status(500).json({ success: false, message: 'Server error' });
+    console.error(error)
+    res.status(500).json({ success: false, message: 'Server error' })
   }
-};
+}
