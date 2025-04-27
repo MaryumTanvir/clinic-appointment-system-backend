@@ -415,6 +415,7 @@ exports.getPatientDashboard = async (req, res) => {
     }
     const patientId = req.user._id;
 
+    const profile = await PatientProfile.findOne({ userId: patientId });
     // Fetch appointments
     const appointments = await Appointment.find({ patientId })
       .populate('doctorId', 'firstName lastName')
@@ -434,6 +435,7 @@ exports.getPatientDashboard = async (req, res) => {
     res.status(200).json({
       success: true,
       data: {
+        profile,
         appointments,
         payments,
         feedback

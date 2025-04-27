@@ -341,7 +341,7 @@ db.users.insertMany([
 db.doctorProfiles.insertMany([
   {
     userId: doctorIds[0],
-    specialty: "Dermatologist",
+    specialty: "Dermatology",
     credentials: "MBBS, FCPS",
     approved: true,
     consultationFee: 2500,
@@ -355,7 +355,7 @@ db.doctorProfiles.insertMany([
   },
   {
     userId: doctorIds[1],
-    specialty: "Cardiologist",
+    specialty: "Cardiology",
     credentials: "MBBS, MD",
     approved: true,
     consultationFee: 3000,
@@ -369,7 +369,7 @@ db.doctorProfiles.insertMany([
   },
   {
     userId: doctorIds[2],
-    specialty: "Neurologist",
+    specialty: "Neurology",
     credentials: "MBBS, MRCP",
     approved: true,
     consultationFee: 3500,
