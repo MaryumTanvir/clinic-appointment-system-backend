@@ -3,6 +3,7 @@ const DoctorProfile = require('../models/DoctorProfile');
 const Appointment = require('../models/Appointment');
 const Feedback = require('../models/Feedback');
 const User = require('../models/User');
+const PatientProfile = require('../models/PatientProfile');
 
 const mongoose = require('mongoose');
 
@@ -71,90 +72,107 @@ exports.getAssignedShifts = async (req, res) => {
 
 // Get appointments for the logged-in doctor with filtering
 exports.getAppointments = async (req, res) => {
-    try {
+  try {
       console.log('getAppointments - req.user:', req.user); // Debug log
       if (!req.user) {
-        return res.status(401).json({ success: false, message: 'User not authenticated' });
+          return res.status(401).json({ success: false, message: 'User not authenticated' });
       }
-  
+
       const doctorId = req.user._id;
       const { filter } = req.query; // Get the filter from query parameters
-  
+
       // Determine the date range based on the filter
-      const now = new Date(); // Current date and time
       const today = new Date();
       today.setHours(0, 0, 0, 0); // Set time to midnight for comparison
       let dateFilter = {};
-  
+
       if (filter === 'past') {
-        dateFilter = { date: { $lt: today } }; // Appointments before today
+          dateFilter = { date: { $lt: today } }; // Appointments before today
       } else if (filter === 'today') {
-        dateFilter = { date: today }; // Appointments on today's date
+          dateFilter = { date: today }; // Appointments on today's date
       } else if (filter === 'future') {
-        dateFilter = { date: { $gt: today } }; // Appointments after today
+          dateFilter = { date: { $gt: today } }; // Appointments after today
       }
-  
+
       // Fetch appointments based on the filter
       const appointments = await Appointment.find({ doctorId, ...dateFilter })
-        .populate('patientId', 'firstName lastName email contact') // Populate patient details
-        .sort({ date: 1, time: 1 });
-  
+          .populate('patientId', 'firstName lastName email') // Populate patient details
+          .lean(); // Convert Mongoose documents to plain JavaScript objects
+
+      // Fetch patient contact details from PatientProfile
+      const patientIds = appointments.map(appointment => appointment.patientId._id);
+      const patientProfiles = await PatientProfile.find({ userId: { $in: patientIds } }, 'userId contact').lean();
+
+      // Map patient contact details to appointments
+      const patientContactMap = patientProfiles.reduce((map, profile) => {
+          map[profile.userId] = profile.contact;
+          return map;
+      }, {});
+
+      const enrichedAppointments = appointments.map(appointment => ({
+          ...appointment,
+          contact: patientContactMap[appointment.patientId._id] || null
+      }));
+
       res.status(200).json({
-        success: true,
-        count: appointments.length,
-        data: appointments
+          success: true,
+          count: enrichedAppointments.length,
+          data: enrichedAppointments
       });
-    } catch (error) {
+  } catch (error) {
       console.error('Get appointments error:', error);
       res.status(500).json({ success: false, message: error.message });
+  }
+};
+
+
+// Update the status of an appointment
+exports.updateAppointmentStatus = async (req, res) => {
+  try {
+    console.log('updateAppointmentStatus - req.user:', req.user);
+    if (!req.user) {
+      return res.status(401).json({ success: false, message: 'User not authenticated' });
     }
-  };
 
+    const doctorId = req.user._id;
+    const { appointmentId } = req.params;
+    const { status, notes } = req.body;
 
-  // Update the status of an appointment
-  exports.updateAppointmentStatus = async (req, res) => {
-      try {
-        console.log('updateAppointmentStatus - req.user:', req.user);
-        if (!req.user) {
-          return res.status(401).json({ success: false, message: 'User not authenticated' });
-        }
-    
-        const doctorId = req.user._id;
-        const { appointmentId } = req.params;
-        const { status } = req.body;
-    
-        console.log('appointmentId:', appointmentId);
-        console.log('doctorId:', doctorId);
-    
-        if (!['completed', 'cancelled'].includes(status)) {
-          return res.status(400).json({ success: false, message: 'Invalid status value' });
-        }
-    
-        const appointment = await Appointment.findOne({
-          _id: appointmentId,
-          doctorId
-        });
-  
-        console.log('Appointment found:', appointment);
-    
-        if (!appointment) {
-          return res.status(404).json({ success: false, message: 'Appointment not found' });
-        }
-    
-        appointment.status = status;
-        appointment.updatedAt = new Date();
-        await appointment.save();
-    
-        res.status(200).json({
-          success: true,
-          message: `Appointment status updated to ${status}`,
-          data: appointment
-        });
-      } catch (error) {
-        console.error('Update appointment status error:', error);
-        res.status(500).json({ success: false, message: error.message });
-      }
-  };
+    console.log('appointmentId:', appointmentId);
+    console.log('doctorId:', doctorId);
+
+    if (!['completed', 'cancelled', 'scheduled'].includes(status)) {
+      return res.status(400).json({ success: false, message: 'Invalid status value' });
+    }
+
+    const appointment = await Appointment.findOne({
+      _id: appointmentId,
+      doctorId
+    });
+
+    console.log('Appointment found:', appointment);
+
+    if (!appointment) {
+      return res.status(404).json({ success: false, message: 'Appointment not found' });
+    }
+
+    appointment.status = status;
+    if (notes !== undefined) {
+      appointment.notes = notes;
+    }
+    appointment.updatedAt = new Date();
+    await appointment.save();
+
+    res.status(200).json({
+      success: true,
+      message: `Appointment status updated to ${status}`,
+      data: appointment
+    });
+  } catch (error) {
+    console.error('Update appointment status error:', error);
+    res.status(500).json({ success: false, message: error.message });
+  }
+};
   
 // Update doctor availability after appointment status change
 exports.updateAvailabilityAfterAppointment = async (req, res) => {
@@ -368,7 +386,12 @@ exports.updateDoctorProfile = async (req, res) => {
       const validUserFields = ['firstName', 'lastName', 'email', 'password', 'gender', 'profileImage'];
       for (const key in updates) {
           if (validUserFields.includes(key)) {
-              userUpdateFields[key] = updates[key];
+              if (key === 'password' && updates[key]) {
+                  // Hash the new password if provided
+                  userUpdateFields[key] = await bcrypt.hash(updates[key], 10);
+              } else {
+                  userUpdateFields[key] = updates[key];
+              }
           }
       }
       userUpdateFields.updatedAt = new Date();
