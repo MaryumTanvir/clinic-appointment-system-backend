@@ -118,20 +118,19 @@ exports.bookAppointment = async (req, res) => {
 
     // Check availability
     const isAvailable = doctorProfile.availability.some(avail => {
-        const availDateOnly = new Date(avail.date);
-        const appointmentDateOnly = new Date(appointmentDate);
+      const availDateOnly = new Date(avail.date);
+      const appointmentDateOnly = new Date(appointmentDate);
       
-        // Set both dates to midnight to compare only the date part
-        availDateOnly.setHours(0, 0, 0, 0);
-        appointmentDateOnly.setHours(0, 0, 0, 0);
+      // Set both dates to midnight to compare only the date part
+      availDateOnly.setHours(0, 0, 0, 0);
+      appointmentDateOnly.setHours(0, 0, 0, 0);
       
-        return (
-          availDateOnly.getTime() === appointmentDateOnly.getTime() &&
-          avail.time === time &&
-          avail.available === true
-        );
+      return (
+        availDateOnly.getTime() === appointmentDateOnly.getTime() &&
+        avail.time === time &&
+        avail.available === true
+      );
     });
-      
 
     if (!isAvailable) {
       return res.status(400).json({ success: false, message: 'Doctor not available at the selected time' });
@@ -160,6 +159,26 @@ exports.bookAppointment = async (req, res) => {
       createdAt: new Date(),
       updatedAt: new Date()
     });
+
+    // Update doctor's availability to false for the booked slot
+    doctorProfile.availability = doctorProfile.availability.map(avail => {
+      const availDateOnly = new Date(avail.date);
+      const appointmentDateOnly = new Date(appointmentDate);
+      availDateOnly.setHours(0, 0, 0, 0);
+      appointmentDateOnly.setHours(0, 0, 0, 0);
+
+      if (
+        availDateOnly.getTime() === appointmentDateOnly.getTime() &&
+        avail.time === time &&
+        avail.available
+      ) {
+        return { ...avail, available: false };
+      }
+      return avail;
+    });
+
+    // Save updated doctor profile
+    await doctorProfile.save();
 
     // Create pending payment
     await Payment.create({
@@ -256,13 +275,8 @@ exports.cancelAppointment = async (req, res) => {
     appointment.updatedAt = new Date();
     await appointment.save();
 
-    // Update associated payment (if pending)
-    const payment = await Payment.findOne({ appointmentId, status: 'pending' });
-    if (payment) {
-      payment.status = 'cancelled';
-      payment.updatedAt = new Date();
-      await payment.save();
-    }
+    // Delete associated payment (if pending)
+    await Payment.deleteOne({ appointmentId, status: 'pending' });
 
     // Update doctor availability (mark slot as available)
     await DoctorProfile.updateOne(
@@ -450,38 +464,39 @@ exports.getPatientDashboard = async (req, res) => {
 // Submit feedback
 exports.submitFeedback = async (req, res) => {
   try {
-    console.log('submitFeedback - req.user:', req.user); // Debug log
-    if (!req.user) {
-      return res.status(401).json({ success: false, message: 'User not authenticated' });
-    }
-    const patientId = req.user._id;
     const { appointmentId, rating, comments } = req.body;
-
-    if (!appointmentId || !rating) {
-      return res.status(400).json({ success: false, message: 'Missing required fields' });
-    }
+    const patientId = req.user._id;
 
     // Validate appointment
     const appointment = await Appointment.findById(appointmentId);
-    if (!appointment || appointment.patientId.toString() !== patientId.toString()) {
-      return res.status(404).json({ success: false, message: 'Appointment not found or not authorized' });
+    if (!appointment) {
+      return res.status(404).json({ success: false, message: 'Appointment not found' });
     }
-
-    // Check if feedback already exists
-    const existingFeedback = await Feedback.findOne({ appointmentId });
-    if (existingFeedback) {
+    if (appointment.patientId.toString() !== patientId.toString()) {
+      return res.status(403).json({ success: false, message: 'Not authorized to submit feedback for this appointment' });
+    }
+    if (appointment.status !== 'completed') {
+      return res.status(400).json({ success: false, message: 'Feedback can only be submitted for completed appointments' });
+    }
+    if (appointment.hasFeedback) {
       return res.status(400).json({ success: false, message: 'Feedback already submitted for this appointment' });
     }
 
     // Create feedback
-    const feedback = await Feedback.create({
+    const feedback = new Feedback({
       appointmentId,
       patientId,
       doctorId: appointment.doctorId,
       rating,
       comments,
-      createdAt: new Date()
+      status: 'pending'
     });
+    await feedback.save();
+
+    // Update appointment hasFeedback
+    appointment.hasFeedback = true;
+    appointment.updatedAt = new Date();
+    await appointment.save();
 
     res.status(201).json({
       success: true,
