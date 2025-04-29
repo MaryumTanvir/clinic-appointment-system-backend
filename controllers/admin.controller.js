@@ -391,26 +391,29 @@ exports.getAllDoctors = async (req, res) => {
 // Delete doctor profile (only if no appointments)
 exports.deleteDoctorProfile = async (req, res) => {
   try {
-    const userId = req.params.id
+    const userId = req.params.id;
 
-    // Check if doctor has any appointments
-    const existingAppointments = await Appointment.find({ doctorId: userId })
+    // Check if doctor has any active (scheduled or rescheduled) appointments
+    const activeAppointments = await Appointment.find({
+      doctorId: userId,
+      status: { $in: ['scheduled', 'rescheduled'] } // Only check for scheduled or rescheduled
+    });
 
-    if (existingAppointments.length > 0) {
+    if (activeAppointments.length > 0) {
       return res.status(400).json({
         success: false,
-        message: 'Cannot delete doctor. Doctor has active or past appointments.'
-      })
+        message: 'Cannot delete doctor. Doctor has active scheduled or rescheduled appointments.'
+      });
     }
 
-    // If no appointments, proceed to delete
-    const deletedProfile = await DoctorProfile.findOneAndDelete({ userId })
-    const deletedUser = await User.findByIdAndDelete(userId)
+    // If no active appointments, proceed to delete
+    const deletedProfile = await DoctorProfile.findOneAndDelete({ userId });
+    const deletedUser = await User.findByIdAndDelete(userId);
 
     if (!deletedProfile || !deletedUser) {
       return res
         .status(404)
-        .json({ success: false, message: 'Doctor not found' })
+        .json({ success: false, message: 'Doctor not found' });
     }
 
     res.status(200).json({
@@ -418,12 +421,13 @@ exports.deleteDoctorProfile = async (req, res) => {
       message: 'Doctor profile deleted successfully',
       deletedProfile,
       deletedUser
-    })
+    });
   } catch (error) {
-    console.error(error)
-    res.status(500).json({ success: false, message: error.message })
+    console.error(error);
+    res.status(500).json({ success: false, message: error.message });
   }
-}
+};
+
 
 // Update Doctor Info
 exports.updateDoctorInfo = async (req, res) => {
