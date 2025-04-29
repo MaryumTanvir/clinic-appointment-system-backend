@@ -1401,6 +1401,169 @@ db.feedback.insertMany([
   }
 ]);
 
+// Rana Bilal Doc Record
+// SHIFTS
+db.shifts.insertMany([
+  {
+    doctorId: doctorIds[1],
+    date: ISODate("2025-05-03"),
+    startTime: "09:00",
+    endTime: "17:00",
+    shiftType: "morning",
+    location: "Cardiology Block",
+    createdBy: extendedAdminIds[0],
+    createdAt: new Date()
+  },
+  {
+    doctorId: doctorIds[1],
+    date: ISODate("2025-05-04"),
+    startTime: "17:00",
+    endTime: "01:00",
+    shiftType: "evening",
+    location: "Cardiology Block",
+    createdBy: extendedAdminIds[1],
+    createdAt: new Date()
+  },
+  {
+    doctorId: doctorIds[1],
+    date: ISODate("2025-05-05"),
+    startTime: "01:00",
+    endTime: "09:00",
+    shiftType: "night",
+    location: "Cardiology Block",
+    createdBy: extendedAdminIds[2],
+    createdAt: new Date()
+  },
+  {
+    doctorId: doctorIds[1],
+    date: ISODate("2025-05-06"),
+    startTime: "09:00",
+    endTime: "17:00",
+    shiftType: "morning",
+    location: "Cardiology Block",
+    createdBy: extendedAdminIds[0],
+    createdAt: new Date()
+  },
+  {
+    doctorId: doctorIds[1],
+    date: ISODate("2025-05-07"),
+    startTime: "17:00",
+    endTime: "01:00",
+    shiftType: "evening",
+    location: "Cardiology Block",
+    createdBy: extendedAdminIds[1],
+    createdAt: new Date()
+  }
+]);
+
+// APPOINTMENTS
+const newAppointmentIds2 = [ObjectId(), ObjectId(), ObjectId(), ObjectId(), ObjectId()];
+db.appointments.insertMany([
+  {
+    _id: newAppointmentIds2[0],
+    patientId: extendedPatientIds[0],
+    doctorId: doctorIds[1],
+    date: ISODate("2025-05-03"),
+    time: "09:30",
+    status: "scheduled",
+    notes: "Heart palpitations checkup",
+    createdAt: new Date(),
+    updatedAt: new Date()
+  },
+  {
+    _id: newAppointmentIds2[1],
+    patientId: extendedPatientIds[1],
+    doctorId: doctorIds[1],
+    date: ISODate("2025-05-04"),
+    time: "17:30",
+    status: "completed",
+    notes: "Follow-up for chest discomfort",
+    createdAt: new Date(),
+    updatedAt: new Date()
+  },
+  {
+    _id: newAppointmentIds2[2],
+    patientId: extendedPatientIds[2],
+    doctorId: doctorIds[1],
+    date: ISODate("2025-05-05"),
+    time: "02:00",
+    status: "cancelled",
+    notes: "Blood pressure consultation",
+    createdAt: new Date(),
+    updatedAt: new Date()
+  },
+  {
+    _id: newAppointmentIds2[3],
+    patientId: extendedPatientIds[3],
+    doctorId: doctorIds[1],
+    date: ISODate("2025-05-06"),
+    time: "10:00",
+    status: "scheduled",
+    notes: "Cardiac screening",
+    createdAt: new Date(),
+    updatedAt: new Date()
+  },
+  {
+    _id: newAppointmentIds2[4],
+    patientId: extendedPatientIds[4],
+    doctorId: doctorIds[1],
+    date: ISODate("2025-05-07"),
+    time: "18:00",
+    status: "completed",
+    notes: "Post-treatment review",
+    createdAt: new Date(),
+    updatedAt: new Date()
+  }
+]);
+
+// FEEDBACK
+db.feedback.insertMany([
+  {
+    appointmentId: newAppointmentIds2[1],
+    patientId: extendedPatientIds[1],
+    doctorId: doctorIds[1],
+    rating: 4.9,
+    comments: "Thorough and attentive care.",
+    status: "reviewed",
+    createdAt: new Date()
+  },
+  {
+    appointmentId: newAppointmentIds2[4],
+    patientId: extendedPatientIds[4],
+    doctorId: doctorIds[1],
+    rating: 4.6,
+    comments: "Clear explanation of treatment plan.",
+    status: "reviewed",
+    createdAt: new Date()
+  },
+  {
+    appointmentId: newAppointmentIds2[2],
+    patientId: extendedPatientIds[2],
+    doctorId: doctorIds[1],
+    rating: 3.5,
+    comments: "Cancelled due to scheduling conflict.",
+    status: "pending",
+    createdAt: new Date()
+  },
+  {
+    appointmentId: newAppointmentIds2[0],
+    patientId: extendedPatientIds[0],
+    doctorId: doctorIds[1],
+    rating: 4.3,
+    comments: "Professional but session felt rushed.",
+    status: "pending",
+    createdAt: new Date()
+  },
+  {
+    appointmentId: newAppointmentIds2[3],
+    patientId: extendedPatientIds[3],
+    doctorId: doctorIds[1],
+    rating: 4.7,
+    comments: "Very knowledgeable cardiologist.",
+    status: "reviewed",
+    createdAt: new Date()
+  }
+]);
 
 
 // PAYMENTS 
