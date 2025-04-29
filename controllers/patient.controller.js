@@ -5,6 +5,8 @@ const Appointment = require('../models/Appointment');
 const Feedback = require('../models/Feedback');
 const Payment = require('../models/Payment');
 const Shift = require('../models/Shift');
+const { parse, startOfDay, isValid } = require('date-fns');
+const { utcToZonedTime } = require('date-fns-tz');
 
 ///// Manage Patient Requests
 
@@ -243,62 +245,102 @@ exports.getAppointments = async (req, res) => {
   }
 };
 
-// Cancel appointment 
 exports.cancelAppointment = async (req, res) => {
   try {
-    console.log('cancelAppointment - req.user:', req.user);
+    console.log('--- Cancel Appointment ---');
+
     if (!req.user) {
+      console.log('User not authenticated');
       return res.status(401).json({ success: false, message: 'User not authenticated' });
     }
+
     const patientId = req.user._id;
     const appointmentId = req.params.id;
 
+    console.log('Patient ID:', patientId);
+    console.log('Appointment ID:', appointmentId);
+
     const appointment = await Appointment.findById(appointmentId);
     if (!appointment) {
+      console.log('Appointment not found');
       return res.status(404).json({ success: false, message: 'Appointment not found' });
     }
+
+    console.log('Found Appointment:', appointment);
+
     if (appointment.patientId.toString() !== patientId.toString()) {
+      console.log('Not authorized to cancel this appointment');
       return res.status(403).json({ success: false, message: 'Not authorized to cancel this appointment' });
     }
+
     if (['cancelled', 'completed'].includes(appointment.status)) {
+      console.log(`Cannot cancel appointment with status: ${appointment.status}`);
       return res.status(400).json({ success: false, message: `Cannot cancel an appointment that is already ${appointment.status}` });
     }
 
     const today = new Date();
     today.setHours(0, 0, 0, 0);
     if (new Date(appointment.date) < today) {
+      console.log('Cannot cancel past appointments');
       return res.status(400).json({ success: false, message: 'Cannot cancel past appointments' });
     }
 
-    // Update appointment status
+    // Cancel appointment
     appointment.status = 'cancelled';
     appointment.updatedAt = new Date();
     await appointment.save();
 
-    // Delete associated payment (if pending)
-    await Payment.deleteOne({ appointmentId, status: 'pending' });
+    console.log('Appointment status updated to cancelled');
 
-    // Update doctor availability (mark slot as available)
-    await DoctorProfile.updateOne(
-      { userId: appointment.doctorId, 'availability.date': appointment.date, 'availability.time': appointment.time },
-      { $set: { 'availability.$.available': true } }
+    // Remove payment if pending
+    const paymentDeleteResult = await Payment.deleteOne({ appointmentId, status: 'pending' });
+    console.log('Payment delete result:', paymentDeleteResult);
+
+    // Normalize date to match availability
+    const normalizedDate = new Date(new Date(appointment.date).toISOString().split('T')[0]);
+    console.log('Normalized appointment date:', normalizedDate);
+    console.log('Time to match:', appointment.time);
+
+    const updateResult = await DoctorProfile.updateOne(
+      {
+        userId: appointment.doctorId,
+        availability: {
+          $elemMatch: {
+            date: normalizedDate,
+            time: appointment.time
+          }
+        }
+      },
+      {
+        $set: { 'availability.$.available': true }
+      }
     );
+
+    console.log('Doctor availability update result:', updateResult);
+
+    if (updateResult.matchedCount === 0) {
+      console.warn('No matching availability slot found to update');
+    }
 
     res.status(200).json({
       success: true,
       message: 'Appointment cancelled successfully',
       data: appointment
     });
+
   } catch (error) {
     console.error('Cancel appointment error:', error);
     res.status(500).json({ success: false, message: error.message });
   }
 };
 
-// Reschedule appointment 
+// Reschedule appointment
 exports.rescheduleAppointment = async (req, res) => {
   try {
     console.log('rescheduleAppointment - req.user:', req.user);
+    console.log('rescheduleAppointment - req.body:', req.body);
+    console.log('rescheduleAppointment - appointmentId:', req.params.id);
+
     if (!req.user) {
       return res.status(401).json({ success: false, message: 'User not authenticated' });
     }
@@ -310,10 +352,17 @@ exports.rescheduleAppointment = async (req, res) => {
       return res.status(400).json({ success: false, message: 'Date and time are required' });
     }
 
+    // Validate date format (YYYY-MM-DD)
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) {
+      return res.status(400).json({ success: false, message: 'Invalid date format. Use YYYY-MM-DD' });
+    }
+
     const appointment = await Appointment.findById(appointmentId);
     if (!appointment) {
       return res.status(404).json({ success: false, message: 'Appointment not found' });
     }
+    console.log('rescheduleAppointment - appointment:', appointment);
+
     if (appointment.patientId.toString() !== patientId.toString()) {
       return res.status(403).json({ success: false, message: 'Not authorized to reschedule this appointment' });
     }
@@ -324,9 +373,15 @@ exports.rescheduleAppointment = async (req, res) => {
       return res.status(400).json({ success: false, message: 'Cannot reschedule a completed appointment' });
     }
 
-    const newDate = new Date(date);
+    // Parse date as UTC
+    const newDate = new Date(date + 'T00:00:00.000Z');
+    if (isNaN(newDate.getTime())) {
+      return res.status(400).json({ success: false, message: 'Invalid date' });
+    }
+    console.log('rescheduleAppointment - newDate:', newDate, 'newDate.getTime():', newDate.getTime());
+
     const today = new Date();
-    today.setHours(0, 0, 0, 0);
+    today.setUTCHours(0, 0, 0, 0);
     if (newDate < today) {
       return res.status(400).json({ success: false, message: 'Cannot reschedule to a past date' });
     }
@@ -335,11 +390,23 @@ exports.rescheduleAppointment = async (req, res) => {
     if (!doctorProfile) {
       return res.status(404).json({ success: false, message: 'Doctor profile not found or not approved' });
     }
+    console.log('rescheduleAppointment - doctorProfile.availability:', doctorProfile.availability);
 
     // Check if new slot is available
     const isAvailable = doctorProfile.availability.some(avail => {
       const availDate = new Date(avail.date);
-      availDate.setHours(0, 0, 0, 0);
+      availDate.setUTCHours(0, 0, 0, 0);
+
+      console.log('rescheduleAppointment - availability check:', {
+        availDate,
+        availDateTime: availDate.getTime(),
+        newDate,
+        newDateTime: newDate.getTime(),
+        availTime: avail.time,
+        requestedTime: time,
+        available: avail.available
+      });
+
       return availDate.getTime() === newDate.getTime() && avail.time === time && avail.available;
     });
     if (!isAvailable) {
@@ -358,18 +425,31 @@ exports.rescheduleAppointment = async (req, res) => {
       return res.status(400).json({ success: false, message: 'Time slot already booked' });
     }
 
-    // Update old availability (mark original slot as available)
+    const formatDateString = dateObj => dateObj.toISOString().split('T')[0]; // "YYYY-MM-DD"
+
+    const oldDateStr = formatDateString(appointment.date);
+    const newDateStr = formatDateString(newDate);
+
+    // Mark old slot as available
     await DoctorProfile.updateOne(
-      { userId: appointment.doctorId, 'availability.date': appointment.date, 'availability.time': appointment.time },
+      { userId: appointment.doctorId, 'availability.date': oldDateStr, 'availability.time': appointment.time },
       { $set: { 'availability.$.available': true } }
     );
 
-    // Update new availability (mark new slot as unavailable)
+    // Mark new slot as unavailable
     await DoctorProfile.updateOne(
-      { userId: appointment.doctorId, 'availability.date': newDate, 'availability.time': time },
-      { $set: { 'availability.$.available': false } }
+      { userId: appointment.doctorId },
+      { $set: {'availability.$[elem].available': false}},
+      { arrayFilters: [  { 'elem.date': newDateStr, 'elem.time': time }]}
     );
+    
 
+    console.log("Updating availability:", {
+      old: { date: oldDateStr, time: appointment.time },
+      new: { date: newDateStr, time: time }
+    });
+
+    
     // Update appointment
     appointment.date = newDate;
     appointment.time = time;
@@ -419,6 +499,85 @@ exports.getPatientProfile = async (req, res) => {
     res.status(500).json({ success: false, message: error.message });
   }
 };
+
+// Update patient profile
+exports.updatePatientProfile = async (req, res) => {
+  try {
+    console.log('updatePatientProfile - req.user:', req.user);
+    if (!req.user) {
+      return res.status(401).json({ success: false, message: 'User not authenticated' });
+    }
+    const patientId = req.user._id;
+    const { firstName, lastName, email, gender, profile } = req.body;
+
+    // Validate required fields
+    if (!firstName || !lastName || !email || !gender) {
+      return res.status(400).json({ success: false, message: 'First name, last name, email, and gender are required' });
+    }
+
+    // Validate email format
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(email)) {
+      return res.status(400).json({ success: false, message: 'Invalid email format' });
+    }
+
+    // Check if patient exists and is a patient
+    const patient = await User.findById(patientId);
+    if (!patient || patient.role !== 'patient') {
+      return res.status(404).json({ success: false, message: 'Patient not found' });
+    }
+
+    // Check for duplicate email (excluding current user)
+    const existingUser = await User.findOne({ email, _id: { $ne: patientId } });
+    if (existingUser) {
+      return res.status(400).json({ success: false, message: 'Email already in use' });
+    }
+
+    // Update User
+    patient.firstName = firstName;
+    patient.lastName = lastName;
+    patient.email = email;
+    patient.gender = gender;
+    patient.updatedAt = new Date();
+    await patient.save();
+
+    // Update or create PatientProfile
+    let patientProfile = await PatientProfile.findOne({ userId: patientId });
+    if (!patientProfile) {
+      patientProfile = new PatientProfile({ userId: patientId });
+    }
+
+    if (profile) {
+      if (profile.age !== undefined) patientProfile.age = profile.age;
+      if (profile.contact) {
+        patientProfile.contact = patientProfile.contact || {};
+        if (profile.contact.phone) patientProfile.contact.phone = profile.contact.phone;
+        if (profile.contact.address) patientProfile.contact.address = profile.contact.address;
+      }
+      if (profile.medicalHistory) {
+        patientProfile.medicalHistory = Array.isArray(profile.medicalHistory)
+          ? profile.medicalHistory
+          : profile.medicalHistory.split(',').map(item => item.trim());
+      }
+    }
+    patientProfile.updatedAt = new Date();
+    await patientProfile.save();
+
+    // Fetch updated data for response
+    const updatedPatient = await User.findById(patientId).select('-password');
+    const updatedProfile = await PatientProfile.findOne({ userId: patientId });
+
+    res.status(200).json({
+      success: true,
+      message: 'Profile updated successfully',
+      data: { ...updatedPatient._doc, profile: updatedProfile }
+    });
+  } catch (error) {
+    console.error('Update patient profile error:', error);
+    res.status(500).json({ success: false, message: error.message });
+  }
+};
+
 
 // Get patient dashboard
 exports.getPatientDashboard = async (req, res) => {
