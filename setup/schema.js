@@ -409,7 +409,7 @@ db.doctorProfiles.insertMany([
     approved: true,
     consultationFee: 2500,
     availability: [
-      { date: ISODate("2025-05-01"), time: "09:00", available: true },
+      { date: ISODate("2025-05-01"), time: "09:00", available: false },
       { date: ISODate("2025-05-01"), time: "10:00", available: true }
     ],
     contact: { phone: "03111234567", location: "Skin Ward" },
@@ -1156,7 +1156,7 @@ db.doctorRequests.insertMany([
 
 
 // APPOINTMENTS 
-db.appointments.insertMany([ { _id: appointmentIds[0], patientId: patientIds[0], doctorId: doctorIds[0], date: ISODate("2025-05-01"), time: "09:00", status: "scheduled", notes: "Consultation for acne", createdAt: new Date(), updatedAt: new Date() }, { _id: appointmentIds[1], patientId: patientIds[1], doctorId: doctorIds[1], date: ISODate("2025-05-01"), time: "17:00", status: "completed", notes: "Chest pain follow-up", createdAt: new Date(), updatedAt: new Date() }, { _id: appointmentIds[2], patientId: patientIds[2], doctorId: doctorIds[2], date: ISODate("2025-05-01"), time: "02:00", status: "cancelled", notes: "Migraine consultation", createdAt: new Date(), updatedAt: new Date() } ]);
+db.appointments.insertMany([ { _id: appointmentIds[0], patientId: patientIds[0], doctorId: doctorIds[0], date: ISODate("2025-05-01"), time: "09:00", status: "completed", notes: "Consultation for acne", hasFeedback: "true", createdAt: new Date(), updatedAt: new Date() }, { _id: appointmentIds[1], patientId: patientIds[1], doctorId: doctorIds[1], date: ISODate("2025-05-01"), time: "17:00", status: "completed", notes: "Chest pain follow-up", hasFeedback: "true", createdAt: new Date(), updatedAt: new Date() }, { _id: appointmentIds[2], patientId: patientIds[2], doctorId: doctorIds[2], date: ISODate("2025-05-01"), time: "02:00", status: "cancelled", notes: "Migraine consultation", hasFeedback: "true", createdAt: new Date(), updatedAt: new Date() } ]);
 
 //new appointments insertion
 const newAppointmentIds = [
