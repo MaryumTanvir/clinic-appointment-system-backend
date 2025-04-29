@@ -24,6 +24,9 @@ router.put('/appointments/:id/reschedule', authMiddleware, patientController.res
 // GET patient profile info
 router.get('/profile', authMiddleware, patientController.getPatientProfile);
 
+// PUT update patient profile
+router.put('/profile', authMiddleware, patientController.updatePatientProfile);
+
 // GET patient dashboard (appointment history and other info)
 router.get('/dashboard', authMiddleware, patientController.getPatientDashboard);
 
